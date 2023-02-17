@@ -238,24 +238,38 @@ class PMU extends Module{
   }
 
   val stall1CntList = Map(
-    "memStallCycle"                  ->   (0x00,  "memStallCycle"),
-    "memStallCnt"                    ->   (0x01,  "memStallCnt"  ),
-    "mduStallCycle"                  ->   (0x02,  "mduStallCycle"),
-    "mduStallCnt"                    ->   (0x03,  "mduStallCnt"  ),
-    "issueStalli0Cycle"              ->   (0x04,  "issueStalli0Cycle"),
-    "issueStalli0Cnt"                ->   (0x05,  "issueStalli0Cnt"),
-    "issueStalli1Cycle"              ->   (0x06,  "issueStalli1Cycle"),
+    "memStallCycle"                ->   (0x00,  "memStallCycle"),
+    "memStallCnt"                  ->   (0x01,  "memStallCnt"  ),
+    "mduStallCycle"                ->   (0x02,  "mduStallCycle"),
+    "mduStallCnt"                  ->   (0x03,  "mduStallCnt"  ),
+    "issueStalli0Cycle"            ->   (0x04,  "issueStalli0Cycle"),
+    "issueStalli0Cnt"              ->   (0x05,  "issueStalli0Cnt"),
+    "issueStalli1Cycle"            ->   (0x06,  "issueStalli1Cycle"),
     "issueStalli1Cnt"              ->   (0x07,  "issueStalli1Cnt"),
-    "i1Hiti0Block"                    ->   (0x08,  "i1Hiti0Block"  ),
-    "i1StoreBlock"              ->   (0x09,  "i1StoreBlock"),
-    "i1dependi0"                ->   (0x0a,  "i1dependi0"),
-    "i1i0loadstore"              ->   (0x0b,  "i1i0loadstore"),
-    "i1muldiv"              ->   (0x0c,  "i1muldiv"),
-    "i1load"                ->   (0x0d,  "i1load"),
-    "i1Hiti0"              ->   (0x0e,  "i1Hiti0")
+    "mduNotReady1"                 ->   (0x08, "mduNotReady1"),
+    "mduNotReady0"                 ->   (0x09, "mduNotReady0"),
+
+    "LSU_load_store_confilct"      ->   (0x0a, "LSU_load_store_confilct"),
+    "i0i1LSBlock"                  ->   (0x0b, "i0i1LSBlock"),
+    "i0i1LoadBlockLoadtouse"                ->   (0x0c, "i0i1LoadBlockLoadtouse"),
+    "i0i1StoreBlock"               ->   (0x0d, "i0i1StoreBlock"),
+    "i0i1AlternaingBlock"          ->   (0x0e, "i0i1AlternaingBlock"),
+
+    "i1LoadBlock"                  ->   (0x0f, "i1LoadBlock"),
+    "i1MulBlock"                   ->   (0x10, "i1MulBlock"),
+    "i1Dependi0_noneBlockCase"     ->   (0x11, "i1Dependi0_noneBlockCase"),
+    "i1SecondaryBlock"             ->   (0x12, "i1SecondaryBlock"),
+
+    "i1LoadDependi0ALu"             ->   (0x13, "i1LoadDependi0ALu"),
+    "i1rs2StoreDependi0ALu"             ->   (0x14, "i1rs2StoreDependi0ALu"),
+    "i1AluDependi0ALu"             ->   (0x15, "i1AluDependi0ALu"),
+
+    "whhh"             ->   (0x16, "whhh")
+    
+
   )
 
-  val stall1CntNum = 16
+  val stall1CntNum = 32
   val stall1Cnts = List.fill(stall1CntNum)(RegInit(0.U(64.W)))
   val stall1CntCond = List.fill(stall1CntNum)(WireInit(false.B))
   if(SSDCoreConfig().EnablePMU){(stall1Cnts zip stall1CntCond).map{ case(a,b) => { when(b) { a := a + 1.U }}}}

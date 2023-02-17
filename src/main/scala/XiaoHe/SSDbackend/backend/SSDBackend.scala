@@ -169,6 +169,13 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
   ALU_6.io.cfIn := 0.U.asTypeOf(new CtrlFlowIO)
   ALU_7.io.cfIn := 0.U.asTypeOf(new CtrlFlowIO)
 
+//  BoringUtils.addSource((
+//    ALU_0.io.redirect.valid ||
+//    ALU_1.io.redirect.valid ||
+//    ALU_6.io.redirect.valid ||
+//    ALU_7.io.redirect.valid
+//  ) && memStall, "redirectAtMemstall")
+
   (ALUList zip pipeOut2ALUList).foreach{ case(a,b) =>
     a.io.offset := b.bits.offset
     a.io.out.ready := true.B
@@ -229,7 +236,7 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
   val LSU = Module(new SSDLSU)
   io.dmem <> LSU.io.dmem
 //  dontTouch(io.dmem.resp.ready)
-  LSU.io.out.ready := true.B//!(Redirect6.valid || Redirect7.valid)
+  LSU.io.out.ready := pipeIn(6).ready && pipeIn(7).ready //!(Redirect6.valid || Redirect7.valid)
   memStall := LSU.io.memStall
   LSU.io.storeBypassCtrl <> Bypass.io.LSUBypassCtrl.storeBypassCtrlE2
   val i0LSUValid = BypassPktValid(2) && (BypassPkt(2).decodePkt.load || BypassPkt(2).decodePkt.store)
@@ -326,11 +333,13 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
   coupledPipeOut(3).bits.rd,
   coupledPipeOut(2).bits.rd)
 
-  lsuBypassPortE1 := Seq(coupledPipeIn(1).bits.rd,
+  lsuBypassPortE1 := Seq(pipeIn(2).bits.rd,
+  coupledPipeIn(1).bits.rd,
   coupledPipeIn(0).bits.rd,
   coupledPipeIn(3).bits.rd,
   coupledPipeIn(2).bits.rd)
-  StoreBypassPortE2 := Seq(coupledPipeIn(1).bits.rd,
+  StoreBypassPortE2 := Seq(pipeIn(4).bits.rd,
+  coupledPipeIn(1).bits.rd,
   coupledPipeIn(0).bits.rd,
   coupledPipeIn(3).bits.rd,
   coupledPipeIn(2).bits.rd,
@@ -338,7 +347,11 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
   coupledPipeOut(2).bits.rd)
   
   LSU.io.storeBypassPort <> StoreBypassPortE2
-
+  // val sadf = WireInit(false.B)
+  // BoringUtils.addSink(sadf, "i0i1LoadBlockLoadtouse")
+  // when(sadf) {
+  //   printf("pc: ->  %x\n",io.in(1).bits.cf.pc)
+  // }
   //decode & issue
   //rs1 data type: pc, regfile or bypassa
   //rs2 data type: imm, regfilw or bypass
