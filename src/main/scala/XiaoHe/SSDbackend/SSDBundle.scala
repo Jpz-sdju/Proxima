@@ -90,10 +90,9 @@ class FuPkt extends NutCoreBundle {
   val isSubALU = Output(Bool())
   //for MMIO
   val isMMIO = Output(Bool())
-  //for ghr update
-  val ghr = Output(UInt(GhrLength.W))
-  val btbIsBranch = Output(Bool())  //for update ghr
-  //for ghr commit
+
+  val btbIsBranch = Output(Bool())  //for update 
+
   val branchTaken = Output(Bool())
   //for difftest
   val CSRregfile = new CSRregfile

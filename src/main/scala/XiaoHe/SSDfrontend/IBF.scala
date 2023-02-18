@@ -36,11 +36,9 @@ class IBF extends NutCoreModule with HasInstrType with HasIBUFConst{
     val out = Vec(2, Decoupled(new CtrlFlowIO))
     val flush = Input(Bool())
   })
-//  dontTouch(io.in.bits.ghr)
   //ibuf reg
   // val instBuffer = RegInit(0.U(ibufBitSize.W))
   val ringInstBuffer = RegInit(VecInit(Seq.fill(ibufSize)(0.U(16.W))))
-  val ghrRingMeta = RegInit(VecInit(Seq.fill(ibufSize)(0.U(GhrLength.W))))
   val pcRingMeta = RegInit(VecInit(Seq.fill(ibufSize)(0.U(VAddrBits.W))))
   val npcRingMeta = RegInit(VecInit(Seq.fill(ibufSize)(0.U(VAddrBits.W))))
   val validRingMeta = RegInit(VecInit(Seq.fill(ibufSize)(false.B)))
@@ -85,7 +83,6 @@ class IBF extends NutCoreModule with HasInstrType with HasIBUFConst{
     validRingMeta(targetSlot.U + ringBufferHead) := true.B
     branchRingMeta(targetSlot.U + ringBufferHead) := io.in.bits.brIdx(shiftSize + targetSlot.U)
     ipfRingMeta(targetSlot.U + ringBufferHead) := io.in.bits.icachePF
-    ghrRingMeta(targetSlot.U + ringBufferHead) := io.in.bits.ghr
     btbIsBranchRingMeta(targetSlot.U + ringBufferHead) := io.in.bits.btbIsBranch(shiftSize + targetSlot.U)
   }
   when(ibufWen){
@@ -119,8 +116,6 @@ class IBF extends NutCoreModule with HasInstrType with HasIBUFConst{
   io.out(0).bits := DontCare
   io.out(0).bits.redirect.valid := false.B
   io.out(0).bits.pc := pcRingMeta(ringBufferTail)
-  io.out(0).bits.redirect.ghr := ghrRingMeta(ringBufferTail)
-  io.out(0).bits.redirect.ghrUpdateValid := DontCare
   io.out(0).bits.redirect.btbIsBranch := btbIsBranchRingMeta(ringBufferTail)
   io.out(0).bits.pnpc := npcRingMeta(ringBufferTail)
   io.out(0).bits.instr := Cat(ringInstBuffer(ringBufferTail+1.U), ringInstBuffer(ringBufferTail))
@@ -140,8 +135,6 @@ class IBF extends NutCoreModule with HasInstrType with HasIBUFConst{
   io.out(1).bits := DontCare
   io.out(1).bits.redirect.valid := false.B
   io.out(1).bits.pc := pcRingMeta(inst2_StartIndex)
-  io.out(1).bits.redirect.ghr := ghrRingMeta(inst2_StartIndex)
-  io.out(1).bits.redirect.ghrUpdateValid := DontCare
   io.out(1).bits.redirect.btbIsBranch := btbIsBranchRingMeta(inst2_StartIndex)
   io.out(1).bits.pnpc := npcRingMeta(inst2_StartIndex)
   io.out(1).bits.instr := Cat(ringInstBuffer(inst2_StartIndex+1.U), ringInstBuffer(inst2_StartIndex))

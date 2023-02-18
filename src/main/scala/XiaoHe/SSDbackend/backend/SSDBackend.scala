@@ -115,7 +115,6 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
     SSDCSR.io.cfIn.isRVC                := pipeOut(0).bits.isRVC
     SSDCSR.io.cfIn.isBranch             := pipeOut(0).bits.isBranch
     SSDCSR.io.cfIn.redirect.btbIsBranch := pipeOut(0).bits.btbIsBranch
-    SSDCSR.io.cfIn.redirect.ghr         := pipeOut(0).bits.ghr
   }.elsewhen(i1CSRValid) {
     SSDCSR.io.cfIn.pc                   := pipeOut(1).bits.pc
     SSDCSR.io.cfIn.pnpc                 := pipeOut(1).bits.pnpc
@@ -124,7 +123,6 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
     SSDCSR.io.cfIn.isRVC                := pipeOut(1).bits.isRVC
     SSDCSR.io.cfIn.isBranch             := pipeOut(1).bits.isBranch
     SSDCSR.io.cfIn.redirect.btbIsBranch := pipeOut(1).bits.btbIsBranch
-    SSDCSR.io.cfIn.redirect.ghr         := pipeOut(1).bits.ghr
   }
 //  when(RegNext(i0CSRValid)) {
 //    Redirect2_csr := RegNext(RegNext(SSDCSR.io.redirect))
@@ -186,7 +184,6 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
     a.io.cfIn.isRVC := b.bits.isRVC
     a.io.cfIn.isBranch := b.bits.isBranch
     a.io.cfIn.redirect.btbIsBranch := b.bits.btbIsBranch
-    a.io.cfIn.redirect.ghr := b.bits.ghr
   }
   (ALURedirectList zip pipeOut2Redirect).foreach{ case(a,b) => a := b.bits.redirect}
   (bpuUpdateReqList zip ALUList).foreach{ case(a,b) => a := b.io.bpuUpdateReq}
@@ -207,9 +204,8 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
   finalBpuUpdateReq := Mux(pipeOut(8).bits.bpuUpdateReq.valid && pipeOut(8).fire() && !pipeInvalid(10),pipeOut(8).bits.bpuUpdateReq,
     Mux(pipeOut(9).bits.bpuUpdateReq.valid && pipeOut(9).fire() && !pipeInvalid(11),pipeOut(9).bits.bpuUpdateReq,0.U.asTypeOf(new BPUUpdateReq)))
   BoringUtils.addSource(finalBpuUpdateReq, "bpuUpdateReq")
-  //  BoringUtils.addSource(finalBpuUpdateReq, "ghrUpdateReq")
+
   BoringUtils.addSource(finalBpuUpdateReq.valid,"pmuUpdateCnt")
-//  dontTouch(finalBpuUpdateReq)
 
   val aluValid = VecInit(false.B,false.B,false.B,false.B)
   aluValid := Seq(
@@ -397,8 +393,7 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
     pipeIn(i).bits.debugInfo.rs2Imm  := io.in(i).bits.ctrl.src2Type === SrcType.imm
     //for csr inst
     pipeIn(i).bits.csrInst := io.in(i).bits.cf.instr(6,0) === "b1110011".U
-    // for update ghr
-    pipeIn(i).bits.ghr := io.in(i).bits.cf.redirect.ghr
+
     pipeIn(i).bits.btbIsBranch := io.in(i).bits.cf.redirect.btbIsBranch
     pipeIn(i).bits.branchTaken := DontCare
     //for difftest
@@ -587,27 +582,7 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
     a.io.inValid <> false.B
   }
 
-  //GHR commit
-  val GHRCommit = RegInit(0.U(GhrLength.W))
-  val i0IsBranch = pipeOut(8).fire() && !pipeInvalid(10) && pipeOut(8).bits.isBranch && ALUOpType.isBranch(pipeOut(8).bits.fuOpType)
-  val i1IsBranch = pipeOut(9).fire() && !pipeInvalid(11) && pipeOut(9).bits.isBranch && ALUOpType.isBranch(pipeOut(9).bits.fuOpType)
-  val GHRCommitUpdate = i0IsBranch || i1IsBranch
-  val nextGHRCommit = Cat(GHRCommit(GhrLength-2,0),Mux(i0IsBranch,pipeOut(8).bits.branchTaken,pipeOut(9).bits.branchTaken))
-  when(GHRCommitUpdate){ GHRCommit := nextGHRCommit}
-  val branchInstPC = Mux(GHRCommitUpdate,Mux(i0IsBranch,pipeOut(8).bits.pc,pipeOut(9).bits.pc),0.U)
-  val ghrCompared = Mux(i0IsBranch,pipeOut(8).bits.bpuUpdateReq.ghrNotUpdated,Mux(i1IsBranch,pipeOut(9).bits.bpuUpdateReq.ghrNotUpdated, 0.U))
-  val ghrTag = Mux(i0IsBranch,pipeOut(8).bits.bpuUpdateReq.ghrNotUpdated =/= GHRCommit,
-    Mux(i1IsBranch,pipeOut(9).bits.bpuUpdateReq.ghrNotUpdated =/= GHRCommit,false.B))
-  //assert(RegNext(!ghrTag))
-//  dontTouch(branchInstPC)
-//  dontTouch(nextGHRCommit)
-//  dontTouch(GHRCommit)
-//  if(SSDCoreConfig().EnableGHRDebug){
-//    myDebug(GHRCommitUpdate,"pc = %x, taken: %b, GHR now: %b, GHR compared %b\n",
-//      branchInstPC,Mux(i0IsBranch,pipeOut(8).bits.branchTaken,pipeOut(9).bits.branchTaken).asUInt,GHRCommit,ghrCompared)
-//  }
-//  dontTouch(ghrTag)
-//  dontTouch(ghrCompared)
+
   //Call/Ret Debug
   val i0Call = pipeOut(8).fire() && !pipeInvalid(10) && ALUOpType.call === pipeOut(8).bits.fuOpType
   val i1Call = pipeOut(9).fire() && !pipeInvalid(11) && ALUOpType.call === pipeOut(9).bits.fuOpType
