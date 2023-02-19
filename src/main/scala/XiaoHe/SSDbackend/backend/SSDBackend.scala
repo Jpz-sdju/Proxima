@@ -810,6 +810,7 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
     BoringUtils.addSource(RegNext(pipeOut(8).fire() && !pipeInvalid(10) && pipeOut(8).bits.pc =/= 0.U) && !RegNext(SSDcoretrap),"dt_ic1_valid")
     BoringUtils.addSource(RegNext(Cat(0.U((64 - VAddrBits).W), pipeOut(8).bits.pc)),"dt_ic1_pc")
     BoringUtils.addSource(RegNext(pipeOut(8).bits.instr),"dt_ic1_instr")
+    BoringUtils.addSource(RegNext(pipeOut(8).bits.isRVC), "dt_ic1_isRVC")
     BoringUtils.addSource((RegNext(pipeOut(8).fire() && !pipeInvalid(10) && (pipeOut(8).bits.isMMIO))) || RegNext(pipeOut(8).bits.instr === 0x7b.U) ||
       RegNext(pipeOut(8).bits.instr(6, 0) === "hb0002973".U(6, 0) && pipeOut(8).bits.instr(31, 12) === "hb0002973".U(31, 12)), "dt_ic1_skip")
     BoringUtils.addSource(RegNext(regfile.io.writePorts(0).wen), "dt_ic1_wen")
@@ -833,6 +834,7 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
     BoringUtils.addSource(RegNext(pipeOut(9).fire() && !pipeInvalid(11) && pipeOut(9).bits.pc =/= 0.U), "dt_ic0_valid")
     BoringUtils.addSource(RegNext(Cat(0.U((64 - VAddrBits).W), pipeOut(9).bits.pc)), "dt_ic0_pc")
     BoringUtils.addSource(RegNext(pipeOut(9).bits.instr), "dt_ic0_instr")
+    BoringUtils.addSource(RegNext(pipeOut(9).bits.isRVC), "dt_ic0_isRVC")
     BoringUtils.addSource((RegNext(pipeOut(9).fire() && !pipeInvalid(11) && (pipeOut(9).bits.isMMIO))) || RegNext(pipeOut(9).bits.instr === 0x7b.U) ||
       RegNext(pipeOut(9).bits.instr(6, 0) === "hb0002973".U(6, 0) && pipeOut(9).bits.instr(31, 12) === "hb0002973".U(31, 12)), "dt_ic0_skip")
     BoringUtils.addSource(RegNext(regfile.io.writePorts(1).wen), "dt_ic0_wen")
@@ -849,8 +851,10 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
 //    dt_iw0.io.valid := RegNext(regfile.io.writePorts(1).wen)
 //    dt_iw0.io.dest := RegNext(regfile.io.writePorts(1).addr)
 //    dt_iw0.io.data := RegNext(regfile.io.writePorts(1).data)
-
-    BoringUtils.addSource(RegNext(regfile.io.writePorts(0).wen), "dt_iw1_valid")
+    val regP0 = regfile.io.writePorts(0).addr
+    val regP1 = regfile.io.writePorts(1).addr
+    
+    BoringUtils.addSource(RegNext(Mux(regP0 === regP1 && regfile.io.writePorts(0).wen && regfile.io.writePorts(1).wen ,false.B,regfile.io.writePorts(0).wen)), "dt_iw1_valid")
     BoringUtils.addSource(RegNext(Cat(0.U(3.W), regfile.io.writePorts(0).addr)), "dt_iw1_dest")
     BoringUtils.addSource(RegNext(regfile.io.writePorts(0).data), "dt_iw1_data")
 //    val dt_iw1 = Module(new DifftestIntWriteback)

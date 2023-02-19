@@ -172,7 +172,7 @@ class BPU_ooo extends NutCoreModule {
   (0 to 3).map(i => btb(i).io.w.req.bits.data := btbWrite)
 
   val reqLatch = RegEnable(req,req.valid)
-  val phtReadIndex = getPhtIndex(req.pc,)
+  val phtReadIndex = getPhtIndex(req.pc)
   val phtWriteIndex = getPhtIndex(reqLatch.pc)
 
   val getpht = LookupTree(req.pc(2,1), List.tabulate(4)(i => (i.U -> pht(i)(phtReadIndex))))
@@ -242,23 +242,5 @@ class BPU_ooo extends NutCoreModule {
 
 
   
-}
-
-class DummyPredicter extends NutCoreModule {
-  val io = IO(new Bundle {
-    val in = new Bundle { val pc = Flipped(Valid((UInt(VAddrBits.W)))) }
-    val out = new RedirectIO_nooo
-    val valid = Output(Bool())
-    val flush = Input(Bool())
-    val ignore = Input(Bool())
-    val brIdx = Output(Vec(4, Bool()))
-  })
-  // Note: when io.ignore, io.out.valid must be false.B for this pc
-  // This limitation is for cross instline inst fetch logic
-  io.valid := io.in.pc.valid // Predicter is returning a result
-  io.out.valid := false.B // Need redirect
-  io.out.target := DontCare // Redirect target
-  io.out.rtype := DontCare // Predicter does not need to care about it
-  io.brIdx := VecInit(Seq.fill(4)(false.B)) // Which inst triggers jump
 }
 

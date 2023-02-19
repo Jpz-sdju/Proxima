@@ -159,14 +159,13 @@ class TLBExuIO extends NutCoreBundle {
   }
 }
 
-class InstFetchIO extends NutCoreBundle {
+class PredictPkt extends NutCoreBundle {
   val pc = Output(UInt(VAddrBits.W)) // real PC will be regenerated in IBF
   val pnpc = Output(UInt(VAddrBits.W))
   val brIdx = Output(UInt(4.W))
   val instValid = Output(UInt(4.W))
   //above will be used as user bits in icache
   val icachePF = Output(Bool())
-  val instr = Output(UInt(64.W))
   val btbIsBranch = Output(UInt(4.W))
 }
 

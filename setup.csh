@@ -1,4 +1,4 @@
 cd ..
 source env.sh
-cd NutShell
+cd Proxima
 source env.sh

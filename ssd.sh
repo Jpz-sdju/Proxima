@@ -4,7 +4,7 @@
 #!/bin/bash
 cd ..
 source env.sh
-cd NutShell/
+cd Proxima/
 source env.sh
 
 echo `date "+%Y-%m-%d %H:%M:%S"`
