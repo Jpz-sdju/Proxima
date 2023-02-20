@@ -357,3 +357,5 @@ tmp.scala
 *.f
 *.json
 *.fir
+
+.metals/

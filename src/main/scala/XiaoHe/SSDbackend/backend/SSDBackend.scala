@@ -33,7 +33,7 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
   val pipeIn = Wire(Vec(10,Flipped(Decoupled(new FuPkt))))
   val pipeOut = Wire(Vec(10,Decoupled(new FuPkt)))
   val pipeFire = Wire(Vec(10,Bool()))
-  val pipeFlush = Wire(Vec(10,Bool()))
+  // val pipeFlush = Wire(Vec(10,Bool()))
   val pipeInvalid = Wire(Vec(12,Bool()))
 
   val coupledPipeIn = Wire(Vec(4,Decoupled(new FuPkt)))
@@ -57,8 +57,11 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
   val coupledPipeRegStage8 = Module(new normalPipeConnect(new FuPkt)).suggestName("coupledPipeStage8")
   val coupledPipeRegStage9 = Module(new normalPipeConnect(new FuPkt)).suggestName("coupledPipeStage9")
 
-  pipeFlush := Bypass.io.pipeFlush
-  pipeInvalid := Bypass.io.pipeInvalid
+  // pipeFlush := Bypass.io.pipeFlush
+  val test1 = Wire(Vec(12,Bool()))
+  test1 := Bypass.io.pipeInvalid
+
+  
   for(i <- 0 to 3){
     pipeFire(2*i) := pipeOut(2*i).valid && pipeIn(2*i+2).ready
     pipeFire(2*i+1) := pipeOut(2*i+1).valid && pipeIn(2*i+3).ready
@@ -77,11 +80,26 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
   issueStall := Bypass.io.issueStall
   val BypassPkt = Wire(Vec(10,new BypassPkt))
   val BypassPktE0 = Wire(Vec(2,Decoupled(new BypassPkt)))
-//  dontTouch(BypassPktE0)
+  //  dontTouch(BypassPktE0)
   val BypassPktValid = Wire(Vec(10,Bool()))
   BypassPkt := Bypass.io.BypassPkt
   BypassPktE0 := Bypass.io.decodeBypassPkt
   BypassPktValid := Bypass.io.BypassPktValid
+
+
+  for (i <- 0 to 11) {
+    pipeInvalid(i) := test1(i)
+  }
+  for (i <- 0 to 7) {
+    pipeInvalid(i) := !(memStall || mduStall) && test1(i)
+  }
+
+  // val test = List(0,1,2,3,4,5,6,7)
+
+  // test.foreach{ case i => test1(i) := pipeInvalid(i)}
+  // test.foreach{ case i => pipeInvalid(i) := test1(i) && !(memStall || mduStall)}
+
+
 
   Bypass.io.decodeBypassPkt(0).ready := pipeIn(0).ready
   Bypass.io.decodeBypassPkt(1).ready := pipeIn(1).ready
@@ -188,8 +206,8 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
   (ALURedirectList zip pipeOut2Redirect).foreach{ case(a,b) => a := b.bits.redirect}
   (bpuUpdateReqList zip ALUList).foreach{ case(a,b) => a := b.io.bpuUpdateReq}
   (alu2pmuList zip ALUList).foreach{ case(a,b) => a := b.io.alu2pmu}
-  Bypass.io.flush(0) := (Redirect2.valid) && pipeOut(2).valid
-  Bypass.io.flush(1) := (Redirect3.valid) && pipeOut(3).valid
+  Bypass.io.flush(0) := (Redirect2.valid) && pipeOut(2).valid 
+  Bypass.io.flush(1) := (Redirect3.valid) && pipeOut(3).valid 
   Bypass.io.flush(2) := Redirect8.valid && pipeOut(8).valid
   Bypass.io.flush(3) := Redirect9.valid && pipeOut(9).valid
 
@@ -199,8 +217,8 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
   io.redirectOut := Mux(SSDCSR.io.redirect.valid,SSDCSR.io.redirect,
     Mux(Redirect8.valid &&  pipeOut(8).valid && !pipeInvalid(10),Redirect8,
       Mux(Redirect9.valid &&  pipeOut(9).valid && !pipeInvalid(11),Redirect9,
-        Mux(Redirect2.valid && pipeOut(2).valid,Redirect2,
-          Mux(Redirect3.valid && pipeOut(3).valid,Redirect3,0.U.asTypeOf(new RedirectIO))))))
+        Mux(Redirect2.valid && pipeOut(2).valid && !(memStall || mduStall),Redirect2,
+          Mux(Redirect3.valid && pipeOut(3).valid && !(memStall || mduStall),Redirect3,0.U.asTypeOf(new RedirectIO))))))
   finalBpuUpdateReq := Mux(pipeOut(8).bits.bpuUpdateReq.valid && pipeOut(8).fire() && !pipeInvalid(10),pipeOut(8).bits.bpuUpdateReq,
     Mux(pipeOut(9).bits.bpuUpdateReq.valid && pipeOut(9).fire() && !pipeInvalid(11),pipeOut(9).bits.bpuUpdateReq,0.U.asTypeOf(new BPUUpdateReq)))
   BoringUtils.addSource(finalBpuUpdateReq, "bpuUpdateReq")
@@ -238,20 +256,9 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
   val i0LSUValid = BypassPktValid(2) && (BypassPkt(2).decodePkt.load || BypassPkt(2).decodePkt.store)
   val i1LSUValid = BypassPktValid(3) && (BypassPkt(3).decodePkt.load || BypassPkt(3).decodePkt.store)
   //LSU flush
-//  LSU.io.flush(0) := pipeOut(2).bits.redirect.valid && pipeOut(2).valid || pipeOut(3).bits.redirect.valid && pipeOut(3).valid ||
-//    ALU_6.io.redirect.valid || ALU_7.io.redirect.valid
-//  LSU.io.flush(1) := ALU_6.io.redirect.valid || ALU_7.io.redirect.valid
-//  LSU.io.flush(2) := ALU_6.io.redirect.valid || ALU_7.io.redirect.valid
-//  LSU.io.flush(3) := false.B
-//  LSU.io.invalid(0) := false.B
-//  LSU.io.invalid(1) := pipeOut(3).bits.redirect.valid && pipeOut(3).valid && (BypassPkt(2).decodePkt.load || BypassPkt(2).decodePkt.store)
-//  LSU.io.invalid(2) := false.B
-//  LSU.io.invalid(3) := ALU_7.io.redirect.valid && BypassPktValid(6) && BypassPkt(6).decodePkt.store
-    LSU.io.flush(0) := ALU_6.io.redirect.valid || ALU_7.io.redirect.valid
-    LSU.io.flush(1) := ALU_6.io.redirect.valid || ALU_7.io.redirect.valid
-    LSU.io.flush(2) := false.B
-    LSU.io.invalid(0) := pipeOut(2).bits.redirect.valid && pipeOut(2).valid && (BypassPkt(3).decodePkt.load || BypassPkt(3).decodePkt.store)
-    LSU.io.invalid(1) := false.B
+
+    LSU.io.invalid(0) := ALU_6.io.redirect.valid || ALU_7.io.redirect.valid
+    LSU.io.invalid(1) := ALU_6.io.redirect.valid || ALU_7.io.redirect.valid
     LSU.io.invalid(2) := ALU_6.io.redirect.valid && BypassPktValid(7) && BypassPkt(7).decodePkt.store
 
 //  dontTouch(i0LSUValid)
@@ -552,7 +559,7 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
     a.io.left <> pipeIn(b)
     a.io.right <> pipeOut(b)
     a.io.rightOutFire <> pipeFire(b)
-    a.io.isFlush <> pipeFlush(b)
+    // a.io.isFlush <> pipeFlush(b)
     a.io.inValid <> pipeInvalid(b)
   }
   pipeRegStage0.io.isStall := issueStall(0)
@@ -567,9 +574,13 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
     a.io.left <> pipeIn(b)
     a.io.right <> pipeOut(b)
     a.io.rightOutFire <> pipeFire(b)
-    a.io.isFlush <> pipeFlush(b)
+    // a.io.isFlush <> pipeFlush(b)
     a.io.inValid <> pipeInvalid(b)
   }
+  val stallAndFlush =  !pipeRegStage2.io.right.ready && Redirect2.valid || !pipeRegStage3.io.right.ready && Redirect3.valid
+
+  pipeRegStage2.io.inValid := Mux(stallAndFlush , false.B, pipeInvalid(2))
+  pipeRegStage3.io.inValid := Mux(!pipeRegStage3.io.right.ready && Redirect3.valid , false.B, pipeInvalid(3))
 
   val coupledStageList = List(coupledPipeRegStage6,coupledPipeRegStage7,coupledPipeRegStage8,coupledPipeRegStage9)
   val coupledIndexList = List(0,1,2,3)
@@ -578,7 +589,7 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
     a.io.left <> coupledPipeIn(b)
     a.io.right <> coupledPipeOut(b)
     a.io.rightOutFire <> coupledPipeOut(b).fire()
-    a.io.isFlush <> false.B
+    // a.io.isFlush <> false.B
     a.io.inValid <> false.B
   }
 

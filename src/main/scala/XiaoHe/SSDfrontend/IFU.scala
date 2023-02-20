@@ -144,8 +144,8 @@ class IFU_ooo extends NutCoreModule with HasResetVector {
   brIdx := Mux(io.redirect.valid, 0.U, Mux(state === s_crosslineJump, 0.U, pbrIdx))
 
   // BP will be disabled shortly after a redirect request
-  nlp.io.in.pc.valid := io.imem.req.fire() || io.redirect.valid// only predict when Icache accepts a request
-  nlp.io.in.pc.bits := npc  // predict one cycle early
+  nlp.io.in.pc.valid := Mux(crosslineJump && !pcUpdate, true.B,io.imem.req.fire() || io.redirect.valid)// only predict when Icache accepts a request
+  nlp.io.in.pc.bits := Mux(crosslineJump && !pcUpdate, pc, npc)  // predict one cycle early
   nlp.io.flush := io.redirect.valid && false.B// redirect means BPU may need to be updated
 
 

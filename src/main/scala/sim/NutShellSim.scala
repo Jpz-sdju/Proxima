@@ -149,14 +149,14 @@ class SimTop extends Module {
 
   dt_iw0.io.clock    := clock
   dt_iw0.io.coreid   := 0.U
-  dt_iw0.io.index    := 1.U
+  // dt_iw0.io.index    := 1.U
   dt_iw0.io.valid    := dt_iw0_valid
   dt_iw0.io.dest     := dt_iw0_dest
   dt_iw0.io.data     := dt_iw0_data
 
   dt_iw1.io.clock  := clock
   dt_iw1.io.coreid := 0.U
-  dt_iw1.io.index  := 0.U
+  // dt_iw1.io.index  := 0.U
   dt_iw1.io.valid  := dt_iw1_valid
   dt_iw1.io.dest   := dt_iw1_dest
   dt_iw1.io.data   := dt_iw1_data

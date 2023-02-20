@@ -8,7 +8,7 @@ import XiaoHe.SSDfrontend._
 class StallFlushIO extends Bundle{
   //stall point : (0,2) -> i0pipestall, i1pipestall, memsstall
   val stall = Output(Vec(3,Bool()))
-  val flush = Output(Vec(10,Bool())) //10 + 2 (2 is for regfile invalid write)
+  // val flush = Output(Vec(10,Bool())) //10 + 2 (2 is for regfile invalid write)
   val invalid = Output(Vec(12,Bool()))
 }
 class decodePkt extends  NutCoreBundle{

@@ -1,51 +1,40 @@
 [*]
-[*] GTKWave Analyzer v3.3.104 (w)1999-2020 BSI
-[*] Sun Feb 19 15:41:45 2023
+[*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
+[*] Mon Feb 20 17:48:45 2023
 [*]
-[dumpfile] "/home/oslab/xs-env/Proxima/build/2023-02-19@23:40:52.vcd"
-[dumpfile_mtime] "Sun Feb 19 15:40:52 2023"
-[dumpfile_size] 10354262
-[savefile] "/home/oslab/xs-env/Proxima/sfda.gtkw"
-[timestart] 461
-[size] 1573 899
+[dumpfile] "/home/bread/xs-env/Proxima/build/2023-02-21@01:46:29.vcd"
+[dumpfile_mtime] "Mon Feb 20 17:46:29 2023"
+[dumpfile_size] 16474151
+[savefile] "/home/bread/xs-env/Proxima/sfda.gtkw"
+[timestart] 7627
+[size] 2750 1457
 [pos] -1 -1
-*-0.231840 463 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-0.231840 7631 5106 5098 965 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] TOP.
 [treeopen] TOP.SimTop.
 [treeopen] TOP.SimTop.xiaohe.
 [treeopen] TOP.SimTop.xiaohe.nutcore.
 [treeopen] TOP.SimTop.xiaohe.nutcore.frontend.
 [treeopen] TOP.SimTop.xiaohe.nutcore.frontend.idu.
+[treeopen] TOP.SimTop.xiaohe.nutcore.frontend.ifu.
 [treeopen] TOP.SimTop.xiaohe.nutcore.SSDbackend.
 [treeopen] TOP.SimTop.xiaohe.nutcore.SSDbackend.Bypass.
 [treeopen] TOP.SimTop.xiaohe.nutcore.SSDbackend.Bypass.DecodeIO2BypassPkt.
 [treeopen] TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.
 [sst_width] 401
-[signals_width] 380
+[signals_width] 490
 [sst_expanded] 1
-[sst_vpaned_height] 524
+[sst_vpaned_height] 932
 @28
-TOP.SimTop.xiaohe.nutcore.SSDbackend.regfile.io__writePorts_0_wen
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU0.io_in_valid
 @22
-TOP.SimTop.xiaohe.nutcore.SSDbackend.regfile.io__writePorts_0_addr[4:0]
-TOP.SimTop.xiaohe.nutcore.SSDbackend.regfile.io__writePorts_0_data[63:0]
-@201
--
-@28
-TOP.SimTop.xiaohe.nutcore.SSDbackend.regfile.io__writePorts_1_wen
-@22
-TOP.SimTop.xiaohe.nutcore.SSDbackend.regfile.io__writePorts_1_addr[4:0]
-TOP.SimTop.xiaohe.nutcore.SSDbackend.regfile.io__writePorts_1_data[63:0]
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU0.io_cfIn_pc[38:0]
 @200
 -
+@28
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU1.io_in_valid
 @22
-TOP.SimTop.xiaohe.nutcore.SSDbackend.pipeStage8.io_right_bits_pc[38:0]
-TOP.SimTop.xiaohe.nutcore.SSDbackend.pipeStage9.io_right_bits_pc[38:0]
-@200
--
-@22
-TOP.SimTop.xiaohe.nutcore.SSDbackend.pipeOut_8_bits_instr[31:0]
-TOP.SimTop.xiaohe.nutcore.SSDbackend.pipeOut_9_bits_instr[31:0]
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU1.io_cfIn_pc[38:0]
 @200
 -
 [pattern_trace] 1
