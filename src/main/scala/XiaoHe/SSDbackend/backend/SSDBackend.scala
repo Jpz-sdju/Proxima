@@ -617,6 +617,11 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
 //      Mux(i0Ret,pipeOut(8).bits.alu2pmu.retWrong,pipeOut(9).bits.alu2pmu.retWrong).asUInt)
 //  }
   //PMU perfCnt signal
+
+  val backendRetretire = ( pipeOut(8).fire() && !pipeInvalid(10) && pipeOut(8).bits.isBranch && ALUOpType.ret === pipeOut(8).bits.fuOpType) ||
+    ( pipeOut(9).fire() && !pipeInvalid(11) && pipeOut(9).bits.isBranch && ALUOpType.ret === pipeOut(9).bits.fuOpType)
+  BoringUtils.addSource(backendRetretire , "backendRetretire")
+
   val perfCntIO = Wire(new PMUIO1)
   PMU.io.in1 <> perfCntIO
 

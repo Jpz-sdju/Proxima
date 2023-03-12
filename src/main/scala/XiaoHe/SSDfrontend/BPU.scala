@@ -193,15 +193,24 @@ class BPU_ooo extends NutCoreModule {
   val rasWen = retIdx.asUInt.orR()
   val rasEmpty = RegEnable(sp.value === 0.U, io.in.pc.valid)
 
+  val backendRetretire = WireInit(false.B)
+  BoringUtils.addSink(backendRetretire , "backendRetretire")
+
   when (rasWen)  {
     ras.write(sp.value + 1.U, retPC)  //TODO: modify for RVC
     sp.value := sp.value + 1.U
+  }.elsewhen(backendRetretire) {
+    when(sp.value === 0.U) {
+        // RAS empty, do nothing
+    }
+    sp.value := Mux(sp.value===0.U, 0.U, sp.value - 1.U)
+
   }.elsewhen (req.valid && req.fuOpType === ALUOpType.ret) {
       when(sp.value === 0.U) {
         // RAS empty, do nothing
       }
-          sp.value := Mux(sp.value===0.U, 0.U, sp.value - 1.U)
-    }
+      sp.value := Mux(sp.value===0.U, 0.U, sp.value - 1.U)
+  }
 
 
 
