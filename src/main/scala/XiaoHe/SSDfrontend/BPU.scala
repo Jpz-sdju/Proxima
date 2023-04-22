@@ -111,14 +111,14 @@ class BPU_ooo extends NutCoreModule {
     output
   }
   def hashBhtAddr(pc:UInt, btbAddr:UInt, fghr:UInt) = {
-    val bhtAddr = Wire(UInt(8.W))
+    val bhtAddr = Wire(UInt(9.W))
     // val bhtAddr = Wire(UInt(5.W))
 
     // bhtAddr := Cat(Cat(fghr(4,3),fghr(0)) ^ Cat(btbAddr(2,0)), fghr(2,1) ^ Cat(btbAddr(3),0.U)) =>84.6
     // bhtAddr :=  Cat(Cat(fghr(3,2),btbAddr(3)) ^ Cat(btbAddr(2,0)), Cat(fghr(0),fghr(1)) ^ Cat(fghr(4),1.U)) 
     // bhtAddr := fghr(4,0)
 
-    bhtAddr := Cat(fghr(4,0), pc(5,3))
+    bhtAddr := Cat(fghr(4,0), pc(6,3))
     // bhtAddr := pc(10,3)
 
     bhtAddr
@@ -143,8 +143,8 @@ class BPU_ooo extends NutCoreModule {
     output
   }
   // BTB
-  val NRbtb = 128
-  val NRbht = 1024
+  val NRbtb = 512
+  val NRbht = 2048
   val btbAddr = new TableAddr(log2Up(NRbtb >> 2))
   def btbEntry() = new Bundle {
     // val tag = UInt(9.W) old version
@@ -326,10 +326,9 @@ class BPU_ooo extends NutCoreModule {
   val sp = Counter(NRras)
   val rasTarget = RegEnable(ras.read(sp.value), io.in.pc.valid)
 
-
   val target = Wire(Vec(icacheLine, UInt(VAddrBits.W)))
-  (0 to icacheLine-1 ).map(i => target(i) := Mux((finalBtbRes(i).asTypeOf(btbEntry()))._type === BTBtype.R, rasTarget, (finalBtbRes(i).asTypeOf(btbEntry())).target))
   val brIdx = Wire(Vec(icacheLine,Bool()))
+
 
   val pcLatchValid = genInstValid(pcLatch)
  
@@ -359,7 +358,8 @@ class BPU_ooo extends NutCoreModule {
   }
 
 
-  (0 to icacheLine-1).map(i => brIdx(i) := pcLatchValid(i).asBool && Mux(finalBtbRes(i).asTypeOf(btbEntry())._type === BTBtype.R, !rasEmpty, bhtDir(i) ) )
+  // (0 to icacheLine-1).map(i => brIdx(i) := pcLatchValid(i).asBool && Mux(finalBtbRes(i).asTypeOf(btbEntry())._type === BTBtype.R, !rasEmpty, bhtDir(i) ) )
+  (0 to icacheLine-1).map(i => brIdx(i) := pcLatchValid(i).asBool && bhtDir(i) ) 
 
   io.brIdx := outputHold(brIdx,validLatch) 
 
@@ -369,8 +369,9 @@ class BPU_ooo extends NutCoreModule {
   if the fetch mask & instvalid === "b0000".U
   
   */
-  // val judge = pcLatchFetch & brIdx.asUInt
-  // io.saveTheFetch := (judge === "b0000".U) && (io.out.valid =/= false.B) && ~pcLatch(3)
+
+  (0 to icacheLine-1 ).map(i => target(i) := Mux((finalBtbRes(i).asTypeOf(btbEntry()))._type === BTBtype.R && !rasEmpty, rasTarget, (finalBtbRes(i).asTypeOf(btbEntry())).target))
+
   io.saveTheFetch := 0.U
   io.saveAddr := pcLatch + 8.U
   io.out.target := outputHold(PriorityMux(brIdx,target), validLatch)
@@ -399,8 +400,8 @@ class BPU_ooo extends NutCoreModule {
   btbWrData.valid := true.B
 
   bhtWrEMp := Fill(icacheLine , req.valid & ~(req.fuOpType === BTBtype.R) & ~(req.fuOpType === BTBtype.J)& ~(req.fuOpType === BTBtype.C)) & decode24(mpBank)
-  bhtWrE1  := Fill(icacheLine , i0wb.valid) & decode24(i0Bank)
-  bhtWrE2  := Fill(icacheLine , i1wb.valid) & decode24(i1Bank)
+  bhtWrE1  := Fill(icacheLine , i0wb.valid && ~(i0wb.fuOpType === BTBtype.R) & ~(i0wb.fuOpType === BTBtype.J)& ~(i0wb.fuOpType === BTBtype.C)) & decode24(i0Bank)
+  bhtWrE2  := Fill(icacheLine , i1wb.valid && ~(i1wb.fuOpType === BTBtype.R) & ~(i1wb.fuOpType === BTBtype.J)& ~(i1wb.fuOpType === BTBtype.C)) & decode24(i1Bank)
 
 
   ////addation

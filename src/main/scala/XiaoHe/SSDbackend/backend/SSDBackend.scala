@@ -376,7 +376,7 @@ class SSDbackend extends NutCoreModule with hasBypassConst {
 
   val mpUpdate = Wire(new BPUUpdateReq)
   mpUpdate := mpBpuUpdateReq
-  val retRetire = (pipeOut(9).fire() && !pipeInvalid(11) && pipeOut(9).bits.isBranch && ALUOpType.ret === pipeOut(9).bits.fuOpType) && (pipeOut(8).fire() && !pipeInvalid(10) && pipeOut(8).bits.isBranch && ALUOpType.ret === pipeOut(8).bits.fuOpType)
+  val retRetire = (pipeOut(9).fire() && !pipeInvalid(11) && pipeOut(9).bits.isBranch && ALUOpType.ret === pipeOut(9).bits.fuOpType) || (pipeOut(8).fire() && !pipeInvalid(10) && pipeOut(8).bits.isBranch && ALUOpType.ret === pipeOut(8).bits.fuOpType)
   BoringUtils.addSource(retRetire,"backendRetRetire")
   if(SSDCoreConfig().EnablePerfCnt){
 

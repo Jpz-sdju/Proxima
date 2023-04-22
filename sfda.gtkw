@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.103 (w)1999-2019 BSI
-[*] Sat Apr 22 07:17:26 2023
+[*] Sat Apr 22 09:55:16 2023
 [*]
-[dumpfile] "/home/jpz/xs-env/Proxima/build/2023-04-22@14:43:58.vcd"
-[dumpfile_mtime] "Sat Apr 22 06:43:58 2023"
-[dumpfile_size] 26331201
+[dumpfile] "/home/jpz/xs-env/Proxima/build/2023-04-22@17:50:49.vcd"
+[dumpfile_mtime] "Sat Apr 22 09:52:22 2023"
+[dumpfile_size] 1885560644
 [savefile] "/home/jpz/xs-env/Proxima/sfda.gtkw"
-[timestart] 1051
-[size] 2020 861
-[pos] 224 183
-*-3.231840 1079 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[timestart] 118297
+[size] 1961 854
+[pos] -1 -1
+*-3.231840 118320 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] TOP.
 [treeopen] TOP.SimTop.
 [treeopen] TOP.SimTop.xiaohe.
@@ -18,82 +18,42 @@
 [treeopen] TOP.SimTop.xiaohe.nutcore.frontend.idu.
 [treeopen] TOP.SimTop.xiaohe.nutcore.frontend.ifu.
 [treeopen] TOP.SimTop.xiaohe.nutcore.SSDbackend.
-[treeopen] TOP.SimTop.xiaohe.nutcore.SSDbackend.Bypass.
 [treeopen] TOP.SimTop.xiaohe.nutcore.SSDbackend.Bypass.DecodeIO2BypassPkt.
 [treeopen] TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.
 [treeopen] TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.loadPipe0.
-[treeopen] TOP.SimTop.xiaohe.nutcore.SSDCache.
 [treeopen] TOP.SimTop.xiaohe.nutcore.SSDCache.dataArray.
 [treeopen] TOP.SimTop.xiaohe.nutcore.SSDCache.dataArray.ram.
 [sst_width] 401
-[signals_width] 485
+[signals_width] 424
 [sst_expanded] 1
-[sst_vpaned_height] 461
-@22
-TOP.SimTop.xiaohe.nutcore.SSDbackend.pipeStage2.io_right_bits_pc[38:0]
-TOP.SimTop.xiaohe.nutcore.SSDbackend.pipeStage3.io_right_bits_pc[38:0]
+[sst_vpaned_height] 491
 @200
 -
 @28
-TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.i0isLoad
-@22
-TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.loadPipe0.reqAddr[63:0]
-@28
-TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.i1isLoad
-@22
-TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.loadPipe1.reqAddr[63:0]
-@200
--
-@28
-TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.io_out_0_valid
-@22
-TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.io_out_0_bits[63:0]
-@28
-TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.io_out_1_valid
-@22
-TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.io_out_1_bits[63:0]
-@200
--
--
-@29
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.miss__0
-@28
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.miss__1
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU0_io_alu2pmu_retWrong
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU1_io_alu2pmu_retWrong
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU6_io_alu2pmu_retWrong
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU7_io_alu2pmu_retWrong
 @200
 -
 @22
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.state[3:0]
-@28
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.both_miss_refill_at_channel1
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.process_channel0_0
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.process_channel1_0
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU0.io_cfIn_pc[38:0]
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU1.io_cfIn_pc[38:0]
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU6.io_cfIn_pc[38:0]
+TOP.SimTop.xiaohe.nutcore.SSDbackend.ALU7.io_cfIn_pc[38:0]
 @200
 -
+@25
+TOP.SimTop.xiaohe.nutcore.frontend.ifu.nlp.btbWrAddr[6:0]
 @22
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.double_miss_read_buffer[63:0]
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.inRdataRegDemand[63:0]
-@200
--
-@28
-TOP.SimTop.xiaohe.nutcore.SSDbackend.LSU.io_memStall
+TOP.SimTop.xiaohe.nutcore.frontend.ifu.nlp.btbWrEWay0[3:0]
 @200
 -
 @28
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.io__mem_req_valid
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.io__mem_req_ready
+TOP.SimTop.xiaohe.nutcore.frontend.ifu.nlp.io_in_pc_valid
 @22
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.io__mem_req_bits_addr[31:0]
+TOP.SimTop.xiaohe.nutcore.frontend.ifu.nlp.io_in_pc_bits[38:0]
 @200
 -
-@28
-TOP.SimTop.xiaohe.nutcore.SSDCache.dataArray.ram.io_write_valid
-TOP.SimTop.xiaohe.nutcore.SSDCache.dataArray.ram.sram_waddr_bank[2:0]
-@22
-TOP.SimTop.xiaohe.nutcore.SSDCache.dataArray.ram.io_write_bits_data[63:0]
-TOP.SimTop.xiaohe.nutcore.SSDCache.dataArray.ram.set_addrs_0[5:0]
-@200
--
-@22
-TOP.SimTop.xiaohe.nutcore.SSDCache.s2.dataWriteArb_io_out_bits_setIdx[8:0]
 [pattern_trace] 1
 [pattern_trace] 0
