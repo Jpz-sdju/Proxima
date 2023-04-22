@@ -52,6 +52,8 @@ trait HasNutCoreParameter {
 
   val FetchBytes = 8
   val FetchSize = 2 //without compress instr
+
+  val GhrLength = 5
 }
 
 trait HasNutCoreConst extends HasNutCoreParameter {

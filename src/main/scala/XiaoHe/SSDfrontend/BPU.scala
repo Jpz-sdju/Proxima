@@ -28,7 +28,7 @@ import XiaoHe.SSDbackend.fu.ALUOpType
 import XiaoHe.SSDfrontend._
 class TableAddr(val idxBits: Int) extends NutCoreBundle {
   val padLen = if (Settings.get("IsRV32") || !Settings.get("EnableOutOfOrderExec")) 2 else 3
-  def tagBits = VAddrBits - padLen - idxBits
+  def tagBits = VAddrBits - padLen - idxBits*3
 
   //val res = UInt((AddrBits - VAddrBits).W)
   val tag = UInt(tagBits.W)
@@ -38,6 +38,9 @@ class TableAddr(val idxBits: Int) extends NutCoreBundle {
   def fromUInt(x: UInt) = x.asTypeOf(UInt(VAddrBits.W)).asTypeOf(this)
   def getTag(x: UInt) = fromUInt(x).tag
   def getIdx(x: UInt) = fromUInt(x).idx
+
+  ///////////////////
+  def hashBTBAddr(pcIn :UInt) = Cat(pcIn(12,11) ^ pcIn(10,9),pcIn(8,3))
 }
 
 object BTBtype {
@@ -58,6 +61,7 @@ class BPUUpdateReq extends NutCoreBundle {
   val fuOpType = Output(FuOpType())
   val btbType = Output(BTBtype())
   val isRVC = Output(Bool()) // for ras, save PC+2 to stack if is RVC
+  val ghrFetch = Output(UInt(GhrLength.W))
   val btbBtypeMiss = Output(Bool())
 }
 
@@ -66,27 +70,59 @@ class BPU_ooo extends NutCoreModule {
   val io = IO(new Bundle {
     val in = new Bundle {
       val pc = Flipped(Valid((UInt(VAddrBits.W))))
+      // val ghr = Input(UInt(GhrLength.W))
     }
     val out = new RedirectIO
     val flush = Input(Bool())
     val brIdx = Output(Vec(4, Bool()))
     val crosslineJump = Output(Bool())
+
+    ///////jpz addiation
+
+    val saveTheFetch = Output(Bool())
+    val saveAddr = Output(UInt(VAddrBits.W))
+
+    val fghr = Output(UInt(GhrLength.W))
   })
 
-  val flush = BoolStopWatch(io.flush, io.in.pc.valid, startHighPriority = true)
 
+
+  val flush = BoolStopWatch(io.flush, io.in.pc.valid, startHighPriority = true)
+  
   //get pht index
-  def getPhtIndex(pc:UInt) = {
+  def getPhtIndex(pc:UInt, ghr:UInt) = {
+    //val phtIndex = Cat(ghr(4,0) ^ Cat(ghr(8,7),0.U(3.W)).asUInt, pc(6,5) ^ ghr(6,5), pc(4,3))//88.198%
     val phtIndex = pc(9,3)
     phtIndex
   }
-
   def outputHold(out: Data, validLatch: Bool) = {
     val outLatch = RegEnable(out, 0.U.asTypeOf(out), validLatch)
     val output = Mux(validLatch,out,outLatch)
     output
   }
   val validLatch = RegNext(io.in.pc.valid)
+
+  def count(x:UInt) = {
+    val output = Wire(UInt(4.W))
+    output := Cat(0.U(3.W), x(0)) +
+    Cat(0.U(3.W), x(1)) +
+    Cat(0.U(3.W), x(2)) +
+    Cat(0.U(3.W), x(3)) 
+    output
+  }
+  def hashBhtAddr(pc:UInt, btbAddr:UInt, fghr:UInt) = {
+    val bhtAddr = Wire(UInt(8.W))
+    // val bhtAddr = Wire(UInt(5.W))
+
+    // bhtAddr := Cat(Cat(fghr(4,3),fghr(0)) ^ Cat(btbAddr(2,0)), fghr(2,1) ^ Cat(btbAddr(3),0.U)) =>84.6
+    // bhtAddr :=  Cat(Cat(fghr(3,2),btbAddr(3)) ^ Cat(btbAddr(2,0)), Cat(fghr(0),fghr(1)) ^ Cat(fghr(4),1.U)) 
+    // bhtAddr := fghr(4,0)
+
+    bhtAddr := Cat(fghr(4,0), pc(5,3))
+    // bhtAddr := pc(10,3)
+
+    bhtAddr
+  }
 
   def genInstValid(pc: UInt) = LookupTree(pc(2,1), List(
     "b00".U -> "b1111".U,
@@ -95,116 +131,226 @@ class BPU_ooo extends NutCoreModule {
     "b11".U -> "b1000".U
   ))
 
+  def decode24(in:UInt) = {
+    val output = Wire(UInt(4.W))
+    output := 0.U(4.W)
+    switch(in) {
+        is("b00".U) { output := "b0001".U}
+        is("b01".U) { output := "b0010".U}
+        is("b10".U) { output := "b0100".U}
+        is("b11".U) { output := "b1000".U}
+      }
+    output
+  }
   // BTB
-  val NRbtb = 512
-  val NRbht = 2048
+  val NRbtb = 128
+  val NRbht = 1024
   val btbAddr = new TableAddr(log2Up(NRbtb >> 2))
   def btbEntry() = new Bundle {
-    val tag = UInt(btbAddr.tagBits.W)
-    val _type = UInt(2.W)
+    // val tag = UInt(9.W) old version
+    val tag = UInt(12.W)
     val target = UInt(VAddrBits.W)
-    val crosslineJump = Bool()
+    val _type = UInt(2.W)
+    // val crosslineJump = Bool()
     val valid = Bool()
   }
 
-  val btb = List.fill(4)(Module(new SRAMTemplate(btbEntry(), set = NRbtb >> 2, shouldReset = true, holdRead = true, singlePort = true)))
-  // flush BTB when executing fence.i
-  val flushBTB = WireInit(false.B)
-  val flushTLB = WireInit(false.B)
-  BoringUtils.addSink(flushBTB, "MOUFlushICache")
-  BoringUtils.addSink(flushTLB, "MOUFlushTLB")
-  (0 to 3).map(i => (btb(i).reset := reset.asBool || (flushBTB || flushTLB)))
+  ///////////////modifuy!!///////////////////////
+  val icacheLine = 4//x2 byte
+  val btbSizePerBank = NRbtb/icacheLine
+  val btbAddrWidth = log2Ceil(btbSizePerBank)
 
-  Debug(reset.asBool || (flushBTB || flushTLB), "[BPU-RESET] bpu-reset flushBTB:%d flushTLB:%d\n", flushBTB, flushTLB)
-
-  (0 to 3).map(i => (btb(i).io.r.req.valid := io.in.pc.valid))
-  (0 to 3).map(i => (btb(i).io.r.req.bits.setIdx := btbAddr.getIdx(io.in.pc.bits)))
-
-
-  val btbRead = Wire(Vec(4, btbEntry()))
-  (0 to 3).map(i => (btbRead(i) := btb(i).io.r.resp.data(0)))
-  // since there is one cycle latency to read SyncReadMem,
-  // we should latch the input pc for one cycle
+  val bhtSizePerBank = NRbht/icacheLine
+  val bhtAddrWidth = log2Ceil(bhtSizePerBank)
+  val mergedGhr = Wire(UInt(5.W))
+  val fghr = RegInit(0.U(5.W))
+  val fghrNextState = WireInit(0.U(5.W))
   val pcLatch = RegEnable(io.in.pc.bits, io.in.pc.valid)
-  val btbHit = Wire(Vec(4, Bool()))
-  (0 to 3).map(i => btbHit(i) := btbRead(i).valid && btbRead(i).tag === btbAddr.getTag(pcLatch) && !flush && RegNext(btb(i).io.r.req.fire(), init = false.B))
-  // btbHit will ignore pc(2,0). pc(2,0) is used to build brIdx
-  val brIdx = VecInit(Seq.fill(4)(false.B))
-  val crosslineJump = btbRead(3).crosslineJump && btbHit(3) && !brIdx(0) && !brIdx(1) && !brIdx(2)
-  io.crosslineJump := crosslineJump
-  val pcLatchValid = genInstValid(pcLatch)
-  val btbIsBranch = Wire(Vec(4, Bool()))
-  (0 to 3).map(i => (btbIsBranch(i) := btbRead(i).valid && (btbRead(i)._type === BTBtype.B) && pcLatchValid(i).asBool && btbRead(i).tag === btbAddr.getTag(pcLatch)))
-  io.out.btbIsBranch := outputHold(btbIsBranch.asUInt(),validLatch)
-  // PHT
-//  val pht = List.fill(4)(Mem(NRbht >> 2, UInt(2.W)))
-  val pht = List.fill(4)(RegInit(VecInit(Seq.fill(NRbht >> 2)((2.U(2.W))))))
-  val phtTaken = Wire(Vec(4, Bool()))
-  val phtindex = getPhtIndex(io.in.pc.bits)
-  (0 to 3).map(i => (phtTaken(i) := RegEnable(pht(i)(phtindex)(1), io.in.pc.valid)))
-//  dontTouch(phtTaken)
 
-  // RAS
+  /******************************BTB region******************************/
+  val btbRdAddr = btbAddr.hashBTBAddr(io.in.pc.bits)
+  // val bhtRdAddr = io.in.pc.bits(7,4)
+  val bhtRdAddr = hashBhtAddr(io.in.pc.bits,btbRdAddr,fghrNextState)  //fix bug
+
+  val btbWrAddr = WireInit(0.U(btbAddrWidth.W))
+  val btbWrData = WireInit(0.U.asTypeOf(btbEntry()))
+  val btbWrEWay0 = Wire(UInt(icacheLine.W))
+  val btbWrEWay1 = Wire(UInt(icacheLine.W))
+
+
+  val btbList = VecInit(Seq.tabulate(btbSizePerBank)(i => (
+    VecInit(Seq.tabulate(icacheLine)( j => (
+      RegEnable(btbWrData, 0.U.asTypeOf(btbEntry()), ( btbWrAddr === i.U )&& btbWrEWay0(j))
+    )))
+  )))
+
+  dontTouch(btbList)
+
+
+  val btbTwoWaysRegOut = List.tabulate(icacheLine)(j => (
+      RegEnable(btbList(btbRdAddr)(j),true.B)
+    ))
+
+  val tagMatchWay0 = Wire(Vec(icacheLine,Bool()))
+  
+  (0 to icacheLine-1).map(i => (
+    tagMatchWay0(i) := btbTwoWaysRegOut(i).valid && !flush && (btbTwoWaysRegOut(i).tag === (pcLatch(15,4)))
+  ))
+
+  //both way could hit
+  val finalBtbRes = List.fill(icacheLine)(Wire(UInt()))
+  (0 to icacheLine-1).map(i => (
+    finalBtbRes(i) := Fill(58,tagMatchWay0(i)) & btbTwoWaysRegOut(i).asUInt 
+  ))
+  val wayHit = Wire(Vec(icacheLine,Bool()))
+  (0 to icacheLine-1).map(i => (
+    wayHit(i) := tagMatchWay0(i) 
+  ))
+  
+  /**********************BTB region end********************************8***/
+
+/**************************update region****************************/
+  val req  = WireInit(0.U.asTypeOf(new BPUUpdateReq))
+  val i0wb = WireInit(0.U.asTypeOf(new BPUUpdateReq))
+  val i1wb = WireInit(0.U.asTypeOf(new BPUUpdateReq))
+  BoringUtils.addSink(req, "mpbpuUpdateReq")
+  BoringUtils.addSink(i0wb, "i0WbBpuUpdateReq")
+  BoringUtils.addSink(i1wb, "i1WbBpuUpdateReq")
+
+  val mpBank = req.pc(2,1)
+  val mpBtbIndex = btbAddr.hashBTBAddr(req.pc)
+
+
+  val mpBtbWay = 0.U      /////default !!!
+  val mpValid = req.valid & req.isMissPredict
+  val mpType = req.btbType
+  val mpActualTaken = req.actualTaken
+  val mpActualTarget = req.actualTarget
+
+  val mpWriteValid = mpActualTaken & mpValid //if mispredict occurs and not taken, do not update BTB
+  // val mpWriteValid = mpValid
+
+  btbWrAddr := mpBtbIndex
+  btbWrEWay0 := Fill(icacheLine,~mpBtbWay & mpWriteValid) & decode24(mpBank)
+  btbWrEWay1 := Fill(icacheLine, mpBtbWay & mpWriteValid) & decode24(mpBank)
+
+  
+  
+  ////bht update
+  //mpbank is on upward
+  val i0Bank = i0wb.pc(2,1)
+  val i1Bank = i1wb.pc(2,1)
+
+  val bhtWrEMp = Wire( UInt(icacheLine.W) ) 
+  val bhtWrE1 = Wire( UInt(icacheLine.W) )
+  val bhtWrE2 = Wire( UInt(icacheLine.W) )
+
+  // Experiments show this is the best priority scheme for same bank/index writes at the same time.
+  
+  
+  
+  /***********************update region end**************************/
+  
+  val eghr = req.ghrFetch
+  val bhtWrAddr0 = hashBhtAddr(req.pc,btbWrAddr,eghr)
+  val bhtWrAddr1 = hashBhtAddr(i0wb.pc,btbAddr.hashBTBAddr(i0wb.pc),i0wb.ghrFetch)
+  val bhtWrAddr2 = hashBhtAddr(i1wb.pc,btbAddr.hashBTBAddr(i1wb.pc),i1wb.ghrFetch)
+  
+  val bhtValid = wayHit
+
+  val bhtBankSel = List.tabulate(bhtSizePerBank)(i => (
+    List.tabulate(icacheLine)( j => (
+      Wire(Bool())
+    ))
+  ))
+  
+  val bhtMpNewCnt = Wire(UInt(2.W))
+  val bhtD1NewCnt = Wire(UInt(2.W))
+  val bhtD2NewCnt = Wire(UInt(2.W))
+
+
+
+  val bhtList = VecInit(Seq.tabulate(bhtSizePerBank)(i => (
+    VecInit(Seq.tabulate(icacheLine)(j => (
+      RegEnable(Mux((bhtWrAddr1 === i.U) && bhtWrE1(j) ,bhtD1NewCnt,
+        Mux((bhtWrAddr2 === i.U) &&bhtWrE2(j) ,bhtD2NewCnt,
+        bhtMpNewCnt)
+      ), 0.U(2.W),bhtBankSel(i)(j))
+    )))
+  )))
+  dontTouch(bhtList)
+
+  val bhtMpOricnt = bhtList(bhtWrAddr0)(mpBank)
+  val bhtD1OriCnt = bhtList(bhtWrAddr1)(i0Bank)
+  val bhtD2OriCnt = bhtList(bhtWrAddr2)(i1Bank)
+
+  bhtMpNewCnt := Mux(mpActualTaken,    Mux(bhtMpOricnt === "b11".U,bhtMpOricnt,bhtMpOricnt+1.U),Mux(bhtMpOricnt === "b00".U,bhtMpOricnt,bhtMpOricnt-1.U) )
+  bhtD1NewCnt := Mux(i0wb.actualTaken, Mux(bhtD1OriCnt === "b11".U,bhtD1OriCnt,bhtD1OriCnt+1.U),Mux(bhtD1OriCnt === "b00".U,bhtD1OriCnt,bhtD1OriCnt-1.U) )
+  bhtD2NewCnt := Mux(i1wb.actualTaken, Mux(bhtD2OriCnt === "b11".U,bhtD2OriCnt,bhtD2OriCnt+1.U),Mux(bhtD2OriCnt === "b00".U,bhtD2OriCnt,bhtD2OriCnt-1.U) )
+
+  
+  (0 to bhtSizePerBank-1).map(i => (
+    (0 to icacheLine-1).map( j=> (
+      bhtBankSel(i)(j) := (bhtWrAddr0 === i.U) && bhtWrEMp(j) || (bhtWrAddr1 === i.U) && bhtWrE1(j) || (bhtWrAddr2 === i.U) && bhtWrE2(j)
+    ))
+  ))
+
+  val bhtRegOut = List.fill(icacheLine)(
+    Wire(UInt(2.W))
+  )
+
+  /////////////////////valid be setted to true.B
+  (0 to icacheLine-1).map(j => (
+    bhtRegOut(j) := RegEnable(bhtList(bhtRdAddr)(j), true.B)
+  ))
+
+  val bhtTaken = Wire(Vec(icacheLine,Bool()))
+  (0 to icacheLine-1).map(i => (
+    bhtTaken(i) := bhtRegOut(i)(1)
+  ))
+
+  /////what the mean of these code?
+  val bhtDir = Wire(Vec(icacheLine,Bool()))
+  val bhtForceTaken = Wire(Vec(icacheLine, Bool()))
+  (0 to icacheLine-1).map(i => (
+    bhtForceTaken(i) := ((finalBtbRes(i).asTypeOf(btbEntry())).valid) && (((finalBtbRes(i).asTypeOf(btbEntry()))._type === BTBtype.C) || ((finalBtbRes(i).asTypeOf(btbEntry()))._type === BTBtype.J) || ((finalBtbRes(i).asTypeOf(btbEntry()))._type === BTBtype.R) )
+  ))
+
+  // bhtDir :=(forceTaken ^ bhtTaken) & wayHit
+  (0 to icacheLine-1).map(i => ( 
+    bhtDir(i) := (bhtTaken(i) | bhtForceTaken(i)) & wayHit(i)
+  ))
+   //ras
   val NRras = 16
   val ras = Mem(NRras, UInt(VAddrBits.W))
   val sp = Counter(NRras)
   val rasTarget = RegEnable(ras.read(sp.value), io.in.pc.valid)
 
-  // update
-  val req = WireInit(0.U.asTypeOf(new BPUUpdateReq))
-  val btbWrite = WireInit(0.U.asTypeOf(btbEntry()))
-  BoringUtils.addSink(req, "bpuUpdateReq")
-//  dontTouch(btbWrite)
 
-  btbWrite.tag := btbAddr.getTag(req.pc)
-  btbWrite.target := req.actualTarget
-  btbWrite._type := req.btbType
-  btbWrite.crosslineJump := req.pc(2,1)==="h3".U && !req.isRVC // ((pc_offset % 8) == 6) && inst is 32bit in length
-  btbWrite.valid := true.B
-  // NOTE: We only update BTB at a miss prediction.
-  // If a miss prediction is found, the pipeline will be flushed
-  // in the next cycle. Therefore it is safe to use single-port
-  // SRAM to implement BTB, since write requests have higher priority
-  // than read request. Again, since the pipeline will be flushed
-  // in the next cycle, the read request will be useless.
-  (0 to 3).map(i => btb(i).io.w.req.valid := (req.isMissPredict /*|| req.btbBtypeMiss*/) && req.valid && i.U === req.pc(2,1))
-  (0 to 3).map(i => btb(i).io.w.req.bits.setIdx := btbAddr.getIdx(req.pc))
-  (0 to 3).map(i => btb(i).io.w.req.bits.data := btbWrite)
+  val target = Wire(Vec(icacheLine, UInt(VAddrBits.W)))
+  (0 to icacheLine-1 ).map(i => target(i) := Mux((finalBtbRes(i).asTypeOf(btbEntry()))._type === BTBtype.R, rasTarget, (finalBtbRes(i).asTypeOf(btbEntry())).target))
+  val brIdx = Wire(Vec(icacheLine,Bool()))
 
-  val reqLatch = RegEnable(req,req.valid)
-  val phtReadIndex = getPhtIndex(req.pc)
-  val phtWriteIndex = getPhtIndex(reqLatch.pc)
-
-  val getpht = LookupTree(req.pc(2,1), List.tabulate(4)(i => (i.U -> pht(i)(phtReadIndex))))
-  val cnt = RegEnable(getpht,req.valid)
-  val taken = reqLatch.actualTaken
-  val newCnt = Mux(taken, cnt + 1.U, cnt - 1.U)
-  val wen = (taken && (cnt =/= "b11".U)) || (!taken && (cnt =/= "b00".U))
-  when (reqLatch.valid && ALUOpType.isBranch(reqLatch.fuOpType) && wen) {
-//      (0 to 3).map(i => when(i.U === reqLatch.pc(2,1)){pht(i).write(phtWriteIndex, newCnt)})
-    (0 to 3).map(i => when(i.U === reqLatch.pc(2,1)){pht(i)(phtWriteIndex) := newCnt})
-  }
-
+  val pcLatchValid = genInstValid(pcLatch)
+ 
   //RAS speculative update
-  val brIdxOneHot = Mux(brIdx(0),"b0001".U,Mux(brIdx(1),"b0010".U,Mux(brIdx(2),"b0100".U,Mux(brIdx(3),"b1000".U,"b0000".U))))
-  val retIdx = VecInit(Seq.fill(4)(false.B))
-  val retPC = Mux1H(brIdxOneHot,Seq(pcLatch+4.U,pcLatch+6.U,pcLatch+8.U,pcLatch+10.U))
-  (0 to 3).map(i => retIdx(i) := (btbRead(i)._type === BTBtype.C) && (brIdxOneHot(i)))
+  val brIdxOneHot = UIntToOH(brIdx.asUInt())
+  val retIdx = VecInit(Seq.fill(icacheLine)(false.B))
+  val retPC = Mux1H(brIdxOneHot,Seq(Cat(pcLatch(VAddrBits-1,4),0.U(4.W))+4.U,Cat(pcLatch(VAddrBits-1,4),0.U(4.W))+6.U,Cat(pcLatch(VAddrBits-1,4),0.U(4.W))+8.U,Cat(pcLatch(VAddrBits-1,4),0.U(4.W))+10.U,Cat(pcLatch(VAddrBits-1,4),0.U(4.W))+12.U,Cat(pcLatch(VAddrBits-1,4),0.U(4.W))+14.U,Cat(pcLatch(VAddrBits-1,4),0.U(4.W))+16.U,Cat(pcLatch(VAddrBits-1,4),0.U(3.W))+18.U))
+  (0 to icacheLine-1).map(i => retIdx(i) := ((finalBtbRes(i).asTypeOf(btbEntry()))._type === BTBtype.C) && (brIdxOneHot(i)))
   val rasWen = retIdx.asUInt.orR()
-  val rasEmpty = RegEnable(sp.value === 0.U, io.in.pc.valid)
+  val rasEmpty = sp.value === 0.U
 
-  val backendRetretire = WireInit(false.B)
-  BoringUtils.addSink(backendRetretire , "backendRetretire")
-
+  val retRetire = WireInit(false.B)
+  BoringUtils.addSink(retRetire,"backendRetRetire")
   when (rasWen)  {
     ras.write(sp.value + 1.U, retPC)  //TODO: modify for RVC
     sp.value := sp.value + 1.U
-  }.elsewhen(backendRetretire) {
+  }.elsewhen(retRetire){
     when(sp.value === 0.U) {
         // RAS empty, do nothing
-    }
+      }
     sp.value := Mux(sp.value===0.U, 0.U, sp.value - 1.U)
-
   }.elsewhen (req.valid && req.fuOpType === ALUOpType.ret) {
       when(sp.value === 0.U) {
         // RAS empty, do nothing
@@ -213,43 +359,112 @@ class BPU_ooo extends NutCoreModule {
   }
 
 
+  (0 to icacheLine-1).map(i => brIdx(i) := pcLatchValid(i).asBool && Mux(finalBtbRes(i).asTypeOf(btbEntry())._type === BTBtype.R, !rasEmpty, bhtDir(i) ) )
 
+  io.brIdx := outputHold(brIdx,validLatch) 
 
-  val target = Wire(Vec(4, UInt(VAddrBits.W)))
-  (0 to 3).map(i => target(i) := Mux(btbRead(i)._type === BTBtype.R, rasTarget, btbRead(i).target))
-  (0 to 3).map(i => brIdx(i) := btbHit(i) && pcLatchValid(i).asBool && Mux(btbRead(i)._type === BTBtype.B, phtTaken(i), Mux(btbRead(i)._type === BTBtype.R, !rasEmpty, true.B)) && btbRead(i).valid)
-  io.brIdx := outputHold(brIdx,validLatch)
-  io.out.target := outputHold(PriorityMux(io.brIdx, target),validLatch)
-  io.out.valid := outputHold(io.brIdx.asUInt.orR,validLatch)
+  io.crosslineJump := false.B
+
+  /*
+  if the fetch mask & instvalid === "b0000".U
+  
+  */
+  // val judge = pcLatchFetch & brIdx.asUInt
+  // io.saveTheFetch := (judge === "b0000".U) && (io.out.valid =/= false.B) && ~pcLatch(3)
+  io.saveTheFetch := 0.U
+  io.saveAddr := pcLatch + 8.U
+  io.out.target := outputHold(PriorityMux(brIdx,target), validLatch)
+  io.out.valid :=outputHold( brIdx.asUInt.orR, validLatch)
+
   io.out.rtype := 0.U
+  io.out.pc:=io.in.pc.bits //not used
 
-
-  //note the speculatibe ghr when more than one branch inst in a instline
-  //divide the instline into two parts according to the position of the taken branch inst
+  io.out.ghrUpdate := 0.U
+  io.out.ghrUpdateValid :=0.U
+  val btbIsBranch = Wire(Vec(icacheLine,Bool()))
+  (0 to icacheLine-1).map(i => (
+    // btbIsBranch(i) := finalBtbRes(i).asTypeOf(btbEntry()).valid && (finalBtbRes(i).asTypeOf(btbEntry())._type === BTBtype.B)
+    btbIsBranch(i) := wayHit(i)
+  ))
+  io.out.btbIsBranch := outputHold(btbIsBranch.asUInt(),validLatch)
+  ////////////////////////////////
   
-  //                         ||                   || <-  jump / branch taken inst
-  //   -----------------------------------------------------------------------------------------
-  //   ||        3           ||          2        ||           1        ||          0         ||  <- instline
-  //   -----------------------------------------------------------------------------------------
-  //   ||   behind part      ||                             front part                        ||
-  //   -----------------------------------------------------------------------------------------
 
-  val jump = io.brIdx.asUInt.orR
-  val frontMask = Wire(UInt(4.W))
-  frontMask := Mux(!jump,"b1111".U,PriorityMux(io.brIdx,Seq("b0001".U,"b0011".U,"b0111".U,"b1111".U))) // when no jump, it will be "b1111".U
-  val frontBranchVec = Wire(UInt(4.W))
-  frontBranchVec := (frontMask & btbIsBranch.asUInt).asUInt
-  val frontBranchNum = Wire(UInt(3.W))
-  val frontBranchNumTmp0 = Wire(UInt(2.W))
-  val frontBranchNumTmp1 = Wire(UInt(2.W))
-  frontBranchNumTmp0 := frontBranchVec(0) + frontBranchVec(1)
-  frontBranchNumTmp1 := frontBranchVec(2) + frontBranchVec(3)
-  frontBranchNum := frontBranchNumTmp0 + frontBranchNumTmp1
-  val branchTakenJump = Mux(jump,PriorityMux(io.brIdx,Seq(btbIsBranch(0),btbIsBranch(1),btbIsBranch(2),btbIsBranch(3))),false.B)
+  // btbWrData.tag :=  req.pc(23,15) ^ req.pc(14,6)
+  btbWrData.tag :=  req.pc(15,4)
 
-  io.out.pc := io.in.pc.bits //not used
+  btbWrData.target := mpActualTarget
+  btbWrData._type := mpType
+  // btbWrData.crosslineJump := 0.U
+  btbWrData.valid := true.B
+
+  bhtWrEMp := Fill(icacheLine , req.valid & ~(req.fuOpType === BTBtype.R) & ~(req.fuOpType === BTBtype.J)& ~(req.fuOpType === BTBtype.C)) & decode24(mpBank)
+  bhtWrE1  := Fill(icacheLine , i0wb.valid) & decode24(i0Bank)
+  bhtWrE2  := Fill(icacheLine , i1wb.valid) & decode24(i1Bank)
 
 
-  
+  ////addation
+  val count=0;
+  if(SSDCoreConfig().EnablePerfCnt){
+
+    
+
+  } 
+
+
+
+
+
+
+  // ghr
+  val ghrUpdate = WireInit(0.U(GhrLength.W))
+  BoringUtils.addSink(ghrUpdate,"ghrUpdate")
+  fghrNextState := Mux(mpValid,ghrUpdate,Mux(validLatch,mergedGhr,fghr))
+  when(true.B){
+    fghr := fghrNextState
+  }
+  io.fghr := fghr
+  val brIdxPri = Mux(brIdx(0),"b0001".U,
+  Mux(brIdx(1),"b0011".U,
+  Mux(brIdx(2),"b0111".U,"b1111".U)))
+
+  val brIdxMask = Wire(UInt(icacheLine.W))
+  brIdxMask := pcLatchValid & brIdxPri
+
+  val tmp = (bhtValid.asUInt & brIdxMask.asUInt)
+
+  val numValids = count(bhtValid.asUInt & brIdxMask.asUInt)
+  // val ghrNs = Mux(exuF,2,3,)
+  mergedGhr := Mux(numValids >= "d4".U, Cat(fghr(4), 0.U(3.W), tmp.orR),
+  Mux(numValids === "d3".U, Cat(fghr(4,3), 0.U(2.W), tmp.orR),
+  Mux(numValids === "d2".U, Cat(fghr(2,0), 0.U(1.W), tmp.orR),
+  Mux(numValids === "d1".U, Cat(fghr(3,0), tmp.orR),fghr
+  ))))
+
+
+
+
+  dontTouch(mergedGhr)
+
+  //bht access 
+  val SSDcoretrap = WireInit(false.B)
+  val space = bhtSizePerBank
+  BoringUtils.addSink(SSDcoretrap,"SSDcoretrap")
+  val bhtCnts = List.fill(space)(RegInit(0.U(64.W)))
+  val total = RegInit(0.U(64.W))
+  if(SSDCoreConfig().EnableBPUCnt){
+    // for(i <- 0 to bhtSizePerBank-1){
+
+    //   when((bhtRdAddr === i.U)  && io.in.pc.valid){
+    //     bhtCnts(i) := bhtCnts(i) + 1.U
+    //     total := total+1.U
+    //   }
+    // }
+    // when(RegNext(SSDcoretrap)) {
+    //   (0 to bhtSizePerBank-1).map { i => {printf( " %d access ->  %d\n",i.U, bhtCnts(i))}
+    //   printf("total access -> %d\n ",total)
+    //   }
+    // }
+  }
 }
 

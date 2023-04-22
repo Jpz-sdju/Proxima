@@ -53,6 +53,9 @@ class RedirectIO extends NutCoreBundle {
   val btbIsBranch = Output(UInt(4.W))
   //for debug
   val pc = Output(UInt(VAddrBits.W))
+
+  val ghrUpdate = Output(UInt(GhrLength.W))
+  val ghrUpdateValid = Output(Bool())
 }
 
 class RedirectIO_nooo extends NutCoreBundle {
@@ -85,6 +88,7 @@ class CtrlFlowIO extends NutCoreBundle {
 
   //sfb add
   val sfb = Output(Bool())
+  val fghr = Output(UInt(GhrLength.W))
 }
 
 class DecodeIO extends NutCoreBundle {
@@ -116,7 +120,6 @@ class FunctionUnitIO extends NutCoreBundle {
   }))
   val out = Decoupled(Output(UInt(XLEN.W)))
 }
-
 class BankedFunctionUnitIO extends NutCoreBundle {
   val in = Vec(2, Flipped(Decoupled(new Bundle {
     val src1 = Output(UInt(XLEN.W))
@@ -126,7 +129,6 @@ class BankedFunctionUnitIO extends NutCoreBundle {
   })))
   val out = Vec(2, Decoupled(Output(UInt(XLEN.W))))
 }
-
 class ForwardIO extends NutCoreBundle {
   val valid = Output(Bool())
   val wb = new WriteBackIO
@@ -183,6 +185,8 @@ class PredictPkt extends NutCoreBundle {
 
   //sfb add
   val sfb = Output(UInt(4.W))
+  //for ghr
+  val fghr = Output(UInt(GhrLength.W))
 }
 
 // Micro OP

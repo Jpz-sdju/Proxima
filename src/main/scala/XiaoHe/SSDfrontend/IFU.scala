@@ -37,6 +37,8 @@ class ICacheUserBundle extends NutCoreBundle {
   val pnpc = UInt(VAddrBits.W)
   val instValid = UInt(4.W) // mark which part of this inst line is valid
   val btbIsBranch = UInt(4.W) // align with npc, need to delay one clock cycle
+
+  val fghr = UInt(GhrLength.W)
 }
 // Note: update ICacheUserBundleWidth when change ICacheUserBundle
 
@@ -164,6 +166,7 @@ class IFU_ooo extends NutCoreModule with HasResetVector {
   icacheUserGen.brIdx := brIdx & pcInstValid
   icacheUserGen.instValid := pcInstValid
   icacheUserGen.btbIsBranch := nlp.io.out.btbIsBranch
+  icacheUserGen.fghr := nlp.io.fghr
 
   io.imem.req.bits.apply(addr = Cat(pc(VAddrBits-1,1),0.U(1.W)), //cache will treat it as Cat(pc(63,3),0.U(3.W))
     size = "b11".U, cmd = SimpleBusCmd.read, wdata = 0.U, wmask = 0.U, user = icacheUserGen.asUInt)
@@ -184,6 +187,7 @@ class IFU_ooo extends NutCoreModule with HasResetVector {
   io.outPredictPkt.bits.btbIsBranch := io.imem.resp.bits.user.get.asTypeOf(new ICacheUserBundle).btbIsBranch
   io.outPredictPkt.bits.icachePF := io.ipf
   io.outPredictPkt.bits.sfb := 0.U
+  io.outPredictPkt.bits.fghr := io.imem.resp.bits.user.get.asTypeOf(new ICacheUserBundle).fghr
 
 
 

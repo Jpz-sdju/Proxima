@@ -40,6 +40,7 @@ class IBF extends NutCoreModule with HasInstrType with HasIBUFConst{
   //ibuf reg
   // val instBuffer = RegInit(0.U(ibufBitSize.W))
   val ringInstBuffer = RegInit(VecInit(Seq.fill(ibufSize)(0.U(16.W))))
+  val ghrRingMeta = RegInit(VecInit(Seq.fill(ibufSize)(0.U(GhrLength.W))))
   val pcRingMeta = RegInit(VecInit(Seq.fill(ibufSize)(0.U(VAddrBits.W))))
   val npcRingMeta = RegInit(VecInit(Seq.fill(ibufSize)(0.U(VAddrBits.W))))
   val validRingMeta = RegInit(VecInit(Seq.fill(ibufSize)(false.B)))
@@ -98,6 +99,7 @@ class IBF extends NutCoreModule with HasInstrType with HasIBUFConst{
     ipfRingMeta(targetSlot.U + ringBufferHead) := io.inPredictPkt.bits.icachePF
     btbIsBranchRingMeta(targetSlot.U + ringBufferHead) := io.inPredictPkt.bits.btbIsBranch(shiftSize + targetSlot.U)
     sfbRingMeta(targetSlot.U + ringBufferHead) := io.inPredictPkt.bits.sfb(shiftSize + targetSlot.U)
+    ghrRingMeta(targetSlot.U + ringBufferHead) := io.inPredictPkt.bits.fghr
   }
   when(ibufWen){
     when(enqueueFire(0)){ibufWrite(0, shiftSize)}
@@ -143,6 +145,7 @@ class IBF extends NutCoreModule with HasInstrType with HasIBUFConst{
   io.out(0).bits.crossPageIPFFix := !ipfRingMeta(ringBufferTail) && first4B && ipfRingMeta(ringBufferTail + 1.U)
 
   io.out(0).bits.sfb := sfbRingMeta(ringBufferTail)
+  io.out(0).bits.fghr := ghrRingMeta(ringBufferTail)
 
 
   io.out(0).valid := dequeueIsValid(0) && (first2B || dequeueIsValid(1)) && !io.flush
@@ -165,6 +168,7 @@ class IBF extends NutCoreModule with HasInstrType with HasIBUFConst{
   io.out(1).bits.crossPageIPFFix := !ipfRingMeta(inst2_StartIndex) && !second2B && ipfRingMeta(inst2_StartIndex + 1.U)
 
   io.out(1).bits.sfb := sfbRingMeta(inst2_StartIndex)
+  io.out(1).bits.fghr := ghrRingMeta(inst2_StartIndex)
 
   if(EnableMultiIssue){
     io.out(1).valid := io.out(0).valid && dequeueIsValid(dequeueSize1) && (second2B || dequeueIsValid(dequeueSize1 + 1.U)) && !io.flush

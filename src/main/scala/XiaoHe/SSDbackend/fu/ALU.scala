@@ -127,7 +127,7 @@ class ALU(hasBru: Boolean = false) extends NutCoreModule {
   val isBranch = ALUOpType.isBranch(func)
   val isJump = ALUOpType.isJump(func)
   val isBru = ALUOpType.isBru(func)
-  val taken = LookupTree(ALUOpType.getBranchType(func), branchOpTable) ^ ALUOpType.isBranchInvert(func)
+  val taken = LookupTree(ALUOpType.getBranchType(func), branchOpTable) ^ ALUOpType.isBranchInvert(func) || isJump
   val target = Mux(isBranch, io.cfIn.pc + io.offset, adderRes)(VAddrBits-1,0)
   val predictWrong = Mux(!taken && isBranch, io.cfIn.brIdx(0), !io.cfIn.brIdx(0) || (io.redirect.target =/= io.cfIn.pnpc))
   val isRVC = (io.cfIn.instr(1,0) =/= "b11".U)
@@ -146,22 +146,17 @@ class ALU(hasBru: Boolean = false) extends NutCoreModule {
   io.redirect.btbIsBranch := DontCare
   io.redirect.rtype := redirectRtype
   io.redirect.pc := io.cfIn.pc
+
+  io.redirect.ghrUpdateValid := valid && isBru && predictWrong //|| branchPredictMiss || branchPredictWrong // maybe = io.redirect.valid ?
+  // io.redirect.ghrUpdate := Cat(io.cfIn.redirect.ghr(GhrLength-2,1),taken)
+
+  io.redirect.ghrUpdate := 0.U  //update later in backend
   // mark redirect type as speculative exec fix
   // may be can be moved to ISU to calculate pc + 4
   // this is actually for jal and jalr to write pc + 4/2 to rd
   io.branchTaken := taken
   io.out.bits := Mux(isBru, Mux(!isRVC, SignExt(io.cfIn.pc, AddrBits) + 4.U, SignExt(io.cfIn.pc, AddrBits) + 2.U), aluRes)
 
-//  Debug(valid && isBru, "tgt %x, valid:%d, npc: %x, pdwrong: %x\n", io.redirect.target, io.redirect.valid, io.cfIn.pnpc, predictWrong)
-//  Debug(valid && isBru, "taken:%d addrRes:%x src1:%x src2:%x func:%x\n", taken, adderRes, src1, src2, func)
-//  Debug(valid && isBru, "[BPW] pc %x tgt %x, npc: %x, pdwrong: %x type: %x%x%x%x\n", io.cfIn.pc, io.redirect.target, io.cfIn.pnpc, predictWrong, isBranch, (func === ALUOpType.jal || func === ALUOpType.call), func === ALUOpType.jalr, func === ALUOpType.ret)
-//  Debug("valid:%d isBru:%d isBranch:%d \n", valid, isBru, isBranch)
-  // Debug("pc %x instr %x tgt %x, npc: %x, pdwrong: %x type: %x%x%x%x\n", io.cfIn.pc, io.cfIn.instr, io.redirect.target, io.cfIn.pnpc, predictWrong, isBranch, (func === ALUOpType.jal || func === ALUOpType.call), func === ALUOpType.jalr, func === ALUOpType.ret)
-  // Debug("func:%b ", func)
-  // Debug("tgt %x, npc: %x, pdwrong: %x\n", io.redirect.target, io.cfIn.pnpc, predictWrong)
-  // Debug("taken:%d addrRes:%x src1:%x src2:%x func:%x\n", taken, adderRes, src1, src2, func)
-
-//  Debug(valid && isBru, " bpuUpdateReq: valid:%d pc:%x isMissPredict:%d actualTarget:%x actualTaken:%x fuOpType:%x btbType:%x isRVC:%d \n", valid && isBru, io.cfIn.pc, predictWrong, target, taken, func, LookupTree(func, RV32I_BRUInstr.bruFuncTobtbTypeTable), isRVC)
 
   io.in.ready := io.out.ready
   io.out.valid := valid
@@ -177,6 +172,7 @@ class ALU(hasBru: Boolean = false) extends NutCoreModule {
   bpuUpdateReq.btbType := LookupTree(func, RV32I_BRUInstr.bruFuncTobtbTypeTable)
   bpuUpdateReq.isRVC := isRVC
   bpuUpdateReq.btbBtypeMiss := branchPredictMiss
+  bpuUpdateReq.ghrFetch := io.cfIn.fghr
   io.bpuUpdateReq := bpuUpdateReq
 
 

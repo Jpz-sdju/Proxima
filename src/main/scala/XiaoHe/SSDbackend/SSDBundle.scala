@@ -99,6 +99,8 @@ class FuPkt extends NutCoreBundle {
   val ArchEvent = new ArchEvent
   //for sfb
   val sfb = Output(Bool())
+  //for ghr
+  val fghr = Output(UInt(GhrLength.W))
 }
 class CSRregfile extends NutCoreBundle {
   val priviledgeMode      =  Output(UInt(XLEN.W))
