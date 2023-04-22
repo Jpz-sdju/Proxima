@@ -82,6 +82,9 @@ class CtrlFlowIO extends NutCoreBundle {
   val crossPageIPFFix = Output(Bool())
   val runahead_checkpoint_id = Output(UInt(64.W))
   val isBranch = Output(Bool())
+
+  //sfb add
+  val sfb = Output(Bool())
 }
 
 class DecodeIO extends NutCoreBundle {
@@ -112,6 +115,16 @@ class FunctionUnitIO extends NutCoreBundle {
     val func = Output(FuOpType())
   }))
   val out = Decoupled(Output(UInt(XLEN.W)))
+}
+
+class BankedFunctionUnitIO extends NutCoreBundle {
+  val in = Vec(2, Flipped(Decoupled(new Bundle {
+    val src1 = Output(UInt(XLEN.W))
+    val src2 = Output(UInt(XLEN.W))
+    val offset = Output(UInt(XLEN.W))
+    val func = Output(FuOpType())
+  })))
+  val out = Vec(2, Decoupled(Output(UInt(XLEN.W))))
 }
 
 class ForwardIO extends NutCoreBundle {
@@ -167,6 +180,9 @@ class PredictPkt extends NutCoreBundle {
   //above will be used as user bits in icache
   val icachePF = Output(Bool())
   val btbIsBranch = Output(UInt(4.W))
+
+  //sfb add
+  val sfb = Output(UInt(4.W))
 }
 
 // Micro OP

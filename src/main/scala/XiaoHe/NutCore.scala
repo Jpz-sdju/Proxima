@@ -49,6 +49,9 @@ trait HasNutCoreParameter {
   val EnableOutOfOrderExec = Settings.get("EnableOutOfOrderExec")
   val EnableMultiCyclePredictor = false // false unless a customized condition branch predictor is included
   val EnableOutOfOrderMemAccess = false // enable out of order mem access will improve OoO backend's performance
+
+  val FetchBytes = 8
+  val FetchSize = 2 //without compress instr
 }
 
 trait HasNutCoreConst extends HasNutCoreParameter {
@@ -115,8 +118,8 @@ class NutCore(implicit val p: NutCoreConfig) extends NutCoreModule {
   for(i <- 0 to 3){frontend.io.out(i) <> SSDbackend.io.in(i)}
   val mmioXbar = Module(new SimpleBusCrossbarNto1(2))
   val s2NotReady = WireInit(false.B)
-  io.imem <> SSDCache(in = frontend.io.imem, mmio = mmioXbar.io.in(0), flush = (frontend.io.flushVec(0) | frontend.io.bpFlush))(SSDCacheConfig(ro = true, name = "icache", userBits = ICacheUserBundleWidth))
-  io.dmem <> SSDCache(in = SSDbackend.io.dmem, mmio = mmioXbar.io.in(1), flush = false.B)(SSDCacheConfig(ro = true, name = "dcache"))
+  io.imem <> SSDICache(in = frontend.io.imem, mmio = mmioXbar.io.in(0), flush = (frontend.io.flushVec(0) | frontend.io.bpFlush))(SSDICacheConfig(ro = true, userBits = ICacheUserBundleWidth))
+  io.dmem <> SSDCache(in = SSDbackend.io.dmem, mmio = mmioXbar.io.in(1), flush = false.B)(BankedCacheConfig(ro = true))
 
   // DMA?
   io.frontend.resp.bits := DontCare
@@ -124,17 +127,5 @@ class NutCore(implicit val p: NutCoreConfig) extends NutCoreModule {
   io.frontend.resp.valid := false.B
 
   io.mmio <> mmioXbar.io.out
-
-//  val mmioXbar = Module(new SimpleBusCrossbarNto1(2))
-//  val s2NotReady = WireInit(false.B)
-//  io.imem <> Cache(in = frontend.io.imem, mmio = mmioXbar.io.in.take(1), flush = Fill(2, frontend.io.flushVec(0) | frontend.io.bpFlush), empty = BoolTmp0, enable = HasIcache)(CacheConfig(ro = true, name = "icache", userBits = ICacheUserBundleWidth))
-//  io.dmem <> Cache(in = SSDbackend.io.dmem, mmio = mmioXbar.io.in.drop(1), flush = "b00".U, empty = BoolTmp1, enable = HasDcache)(CacheConfig(ro = true, name = "dcache"))
-//
-//  // DMA?
-//  io.frontend.resp.bits := DontCare
-//  io.frontend.req.ready := false.B
-//  io.frontend.resp.valid := false.B
-//
-//  io.mmio <> DontCare
 
 }

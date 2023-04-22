@@ -376,7 +376,8 @@ class DecodeIO2BypassPkt extends Module {
   BoringUtils.addSource(mduNotReady1,"mduNotReady1")
   i1Dependi0 := i1Hiti0Rs1 || i1Hiti0Rs2
 
-  i1Load2Block := (i1decodePkt.load || i1decodePkt.store) && (i0decodePkt.load || i0decodePkt.store)
+  // i1Load2Block := (i1decodePkt.load || i1decodePkt.store) && (i0decodePkt.load || i0decodePkt.store)
+  i1Load2Block := (i1decodePkt.load && i0decodePkt.store) || (i0decodePkt.load && i1decodePkt.store) || (i1decodePkt.store && i0decodePkt.store)    //after redo
   i1Mul2Block := i1decodePkt.muldiv && i0decodePkt.muldiv
   //  assign i1_secondary_block_d = ((~i1_dp.alu & i1_rs1_class_d.sec & i1_rs1_match_e1_e3) |
   //                                 (~i1_dp.alu & i1_rs2_class_d.sec & i1_rs2_match_e1_e3 & ~i1_dp.store) & ~disable_secondary);
@@ -384,12 +385,12 @@ class DecodeIO2BypassPkt extends Module {
                       (i1NotAlu && i1rs1Class.subalu && (i1rs1MatchE1 || i1rs1MatchE2 ) && (i1decodePkt.load || i1decodePkt.store)) ||
                       (i1NotAlu && i1rs2Class.subalu && (i1rs2MatchE1 ) && i1decodePkt.store ) ||
                       (i1NotAlu && i1rs2Class.subalu && (i1rs2MatchE1 || i1rs2MatchE2 || i1rs2MatchE3) && !i1decodePkt.store)
-  val x = i1rs2MatchE2 && (!i1rs2BypassE0(2) && !i1rs2Class.load || !i1rs2BypassE0(3) && !i1rs2Class.load) || i1rs2MatchE1 && (!i1rs2BypassE0(0) || !i1rs2BypassE0(1))
-  val y = i1rs1MatchE2 && (!i1rs1BypassE0(2) && !i1rs1Class.load || !i1rs1BypassE0(3) && !i1rs1Class.load) || i1rs1MatchE1 && (!i1rs1BypassE0(0) || !i1rs1BypassE0(1))
+  // val x = i1rs2MatchE2 && (!i1rs2BypassE0(2) && !i1rs2Class.load || !i1rs2BypassE0(3) && !i1rs2Class.load) || i1rs2MatchE1 && (!i1rs2BypassE0(0) || !i1rs2BypassE0(1))
+  // val y = i1rs1MatchE2 && (!i1rs1BypassE0(2) && !i1rs1Class.load || !i1rs1BypassE0(3) && !i1rs1Class.load) || i1rs1MatchE1 && (!i1rs1BypassE0(0) || !i1rs1BypassE0(1))
 
-  val fasheng = WireInit(false.B)
-  fasheng :=  (i0decodePkt.alu && !i0Subalu && i1decodePkt.alu && i1Hiti0Rs1 && i1rs2hitStage =/= 10.U && !x )||
-               (i0decodePkt.alu && !i0Subalu && i1decodePkt.alu && i1Hiti0Rs2 && i1rs1hitStage =/= 10.U && !y)
+  // val fasheng = WireInit(false.B)
+  // fasheng :=  (i0decodePkt.alu && !i0Subalu && i1decodePkt.alu && i1Hiti0Rs1 && i1rs2hitStage =/= 10.U && !x )||
+  //              (i0decodePkt.alu && !i0Subalu && i1decodePkt.alu && i1Hiti0Rs2 && i1rs1hitStage =/= 10.U && !y)
   val noneBlockCase = WireInit(false.B)
   noneBlockCase := (i1decodePkt.alu && i0decodePkt.load) || (i1decodePkt.alu && i0decodePkt.muldiv) || (i0decodePkt.alu && !i0Subalu && (i1decodePkt.load || i1decodePkt.store))
 
@@ -404,15 +405,18 @@ class DecodeIO2BypassPkt extends Module {
     i1Dependi0 && !noneBlockCase ||
     i1SecondaryBlock ||
     mduNotReady0  ||
-    io.issueStall(0) ||
-    i1decodePkt.alu && ( i1rs1MatchE3 && i1rs1Class.subalu || i1rs2MatchE3 && i1rs2Class.subalu)
+    io.issueStall(0) || i1decodePkt.alu && ( i1rs1MatchE3 && i1rs1Class.subalu || i1rs2MatchE3 && i1rs2Class.subalu)
 
   BoringUtils.addSource(i1LoadBlock, "i1LoadBlock")
   BoringUtils.addSource(i1MulBlock, "i1MulBlock")
   BoringUtils.addSource(i1Dependi0 && !noneBlockCase, "i1Dependi0_noneBlockCase")
   BoringUtils.addSource(i1LoadBlock, "i1SecondaryBlock")
 
-  BoringUtils.addSource(fasheng, "whhh")
+  BoringUtils.addSource(i0decodePkt.load && i1decodePkt.load && io.issueStall(1) && i1LoadBlock, "test1")
+  BoringUtils.addSource(i0decodePkt.load && i1decodePkt.load && io.issueStall(1) && (i1Dependi0 && !noneBlockCase), "test2")
+  BoringUtils.addSource(i0decodePkt.load && i1decodePkt.load && io.issueStall(1) && i1SecondaryBlock, "test3")
+  BoringUtils.addSource(i0decodePkt.load && i1decodePkt.load && io.issueStall(1) && io.issueStall(0), "test4")
+  BoringUtils.addSource(i0decodePkt.load && i1decodePkt.load && io.issueStall(1) , "test0")
 
   val cond = i1Dependi0 && !noneBlockCase
   BoringUtils.addSource(cond && i1decodePkt.load && i0decodePkt.alu && !i0Subalu, "i1LoadDependi0ALu")
@@ -428,7 +432,7 @@ class DecodeIO2BypassPkt extends Module {
 
   BoringUtils.addSource(mduNotReady0, "mduNotReady0")
   BoringUtils.addSource(i1Load2Block, "i0i1LSBlock")
-  BoringUtils.addSource(i0decodePkt.load && i1decodePkt.load && i1Hiti0Rs1, "i0i1LoadBlockLoadtouse")
+  BoringUtils.addSource(i0decodePkt.load && i1decodePkt.load && (!io.issueStall(1)), "i0i1LoadBlockLoadtouse")
   BoringUtils.addSource(i0decodePkt.store && i1decodePkt.store, "i0i1StoreBlock")
   BoringUtils.addSource((i0decodePkt.load && i1decodePkt.store) || (i0decodePkt.store && i1decodePkt.load), "i0i1AlternaingBlock")
   
